@@ -1,95 +1,52 @@
 'use client';
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Search, BookOpen, Tag } from "lucide-react";
 import Image from "next/image";
+import { blogService, BlogPost, BlogCategory } from "@/services/blogService";
 
 export const dynamic = 'force-dynamic';
 
 export default function BlogPage() {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
+  const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [categories, setCategories] = useState<BlogCategory[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const categories = [
-    "All",
-    "Expense Splitting",
-    "Group Management",
-    "Travel & Trips",
-    "Roommate Tips",
-    "Financial Planning",
-    "App Features"
-  ];
-
-  const posts = [
-    {
-      title: "How to Split Expenses Fairly Among Roommates",
-      excerpt: "Learn the best practices for tracking and splitting expenses with roommates to avoid conflicts and maintain harmony.",
-      date: "02-16-2023",
-      category: "Roommate Tips",
-      slug: "how-to-split-expenses-fairly",
-      image: "/images/blog/roommates.jpg",
-      tags: ["Roommates", "Fair Split", "Budgeting"]
-    },
-    {
-      title: "Managing Group Travel Expenses Made Easy",
-      excerpt: "Discover how digital expense tracking helps travel groups stay organized and ensures everyone pays their fair share.",
-      date: "02-16-2023",
-      category: "Travel & Trips",
-      slug: "managing-group-travel-expenses",
-      image: "/images/blog/travel.jpg",
-      tags: ["Travel", "Groups", "Tracking"]
-    },
-    {
-      title: "The Psychology of Shared Expenses",
-      excerpt: "Understanding the emotional and social dynamics of splitting costs can help maintain healthy relationships and financial transparency.",
-      date: "02-15-2023",
-      category: "Financial Planning",
-      slug: "psychology-of-shared-expenses",
-      image: "/images/blog/psychology.jpg",
-      tags: ["Psychology", "Relationships", "Money"]
-    },
-    {
-      title: "5 Common Expense Splitting Mistakes to Avoid",
-      excerpt: "Learn from common pitfalls when managing shared expenses and discover smarter ways to handle group finances.",
-      date: "02-15-2023",
-      category: "Expense Splitting",
-      slug: "common-expense-mistakes",
-      image: "/images/blog/mistakes.jpg",
-      tags: ["Mistakes", "Tips", "Best Practices"]
-    },
-    {
-      title: "How to Handle Unequal Income in Shared Living",
-      excerpt: "Expert insights on creating fair expense arrangements when roommates or partners have different income levels.",
-      date: "02-15-2023",
-      category: "Roommate Tips",
-      slug: "unequal-income-sharing",
-      image: "/images/blog/income.jpg",
-      tags: ["Income", "Fairness", "Splitting"]
-    },
-    {
-      title: "Digital Tools That Simplify Group Expenses",
-      excerpt: "Explore the latest apps and tools that make tracking, splitting, and settling shared expenses effortless for modern groups.",
-      date: "02-14-2023",
-      category: "App Features",
-      slug: "digital-expense-tools",
-      image: "/images/blog/tools.jpg",
-      tags: ["Apps", "Features", "Automation"]
-    },
-  ];
+  useEffect(() => {
+    async function fetchBlogData() {
+      try {
+        const [postsData, categoriesData] = await Promise.all([
+          blogService.getAllPosts(),
+          blogService.getCategories()
+        ]);
+        
+        setPosts(postsData);
+        setCategories(categoriesData);
+      } catch (error) {
+        console.error('Error loading blog data:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    fetchBlogData();
+  }, []);
 
   const filteredPosts = posts.filter(post => {
     const matchesCategory = selectedCategory === "All" || post.category === selectedCategory;
     const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         post.excerpt.toLowerCase().includes(searchQuery.toLowerCase());
+                         (post.excerpt && post.excerpt.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesCategory && matchesSearch;
   });
 
   return (
     <div className="min-h-screen relative">
       {/* Facets Background Image */}
-      <div className="fixed inset-0 z-0">
+      <div className="absolute inset-0 z-0">
         <Image
           src="/images/facets.png"
           alt="Background pattern"
@@ -99,7 +56,7 @@ export default function BlogPage() {
       </div>
 
       {/* Magenta Gradient Overlay */}
-      <div className="fixed inset-0 bg-gradient-to-br from-[#FF007F]/10 via-transparent to-[#00CFFF]/10 z-0"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-[#FF007F]/10 via-transparent to-[#00CFFF]/10 z-0"></div>
 
       <div className="relative z-10">
         {/* Search Section */}
@@ -155,20 +112,28 @@ export default function BlogPage() {
                     <h3 className="font-bold text-[#333333]">Categories</h3>
                   </div>
                   <ul className="space-y-2">
-                    {categories.map((category) => (
-                      <li key={category}>
-                        <button
-                          onClick={() => setSelectedCategory(category)}
-                          className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                            selectedCategory === category
-                              ? "bg-[#FF007F] text-white font-medium"
-                              : "text-[#666666] hover:bg-gray-100 hover:text-[#FF007F]"
-                          }`}
-                        >
-                          {category}
-                        </button>
-                      </li>
-                    ))}
+                    {loading ? (
+                      [...Array(5)].map((_, i) => (
+                        <li key={i}>
+                          <div className="h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                        </li>
+                      ))
+                    ) : (
+                      categories.map((category) => (
+                        <li key={category.$id}>
+                          <button
+                            onClick={() => setSelectedCategory(category.name)}
+                            className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
+                              selectedCategory === category.name
+                                ? "bg-[#FF007F] text-white font-medium"
+                                : "text-[#666666] hover:bg-gray-100 hover:text-[#FF007F]"
+                            }`}
+                          >
+                            {category.name}
+                          </button>
+                        </li>
+                      ))
+                    )}
                   </ul>
                 </div>
               </div>
@@ -177,61 +142,98 @@ export default function BlogPage() {
             {/* Blog Posts Grid */}
             <main className="flex-1">
               <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {filteredPosts.map((post, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1, duration: 0.5 }}
-                  >
-                    <Link href={`/blog/${post.slug}`}>
-                      <div className="group bg-white rounded-lg overflow-hidden shadow-sm border border-gray-200 hover:shadow-xl transition-all duration-300 h-full flex flex-col">
-                        {/* Image */}
-                        <div className="relative h-48 bg-gradient-to-br from-gray-200 to-gray-300 overflow-hidden">
-                          <div className="absolute inset-0 bg-gradient-to-br from-[#FF007F]/20 to-[#4A90E2]/20" />
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="w-20 h-20 bg-white/30 rounded-full flex items-center justify-center backdrop-blur-sm">
-                              <BookOpen className="w-10 h-10 text-white" />
+                {loading ? (
+                  [...Array(6)].map((_, i) => (
+                    <div key={i} className="bg-white rounded-lg overflow-hidden shadow-sm border border-gray-200">
+                      <div className="h-48 bg-gray-200 animate-pulse"></div>
+                      <div className="p-6">
+                        <div className="h-6 bg-gray-200 rounded mb-3 animate-pulse"></div>
+                        <div className="h-4 bg-gray-200 rounded mb-2 animate-pulse"></div>
+                        <div className="h-4 bg-gray-200 rounded w-3/4 animate-pulse"></div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  filteredPosts.map((post, index) => (
+                    <motion.div
+                      key={post.$id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1, duration: 0.5 }}
+                    >
+                      <Link href={`/blog/${post.slug}`}>
+                        <div className="group bg-white rounded-lg overflow-hidden shadow-sm border border-gray-200 hover:shadow-xl transition-all duration-300 h-full flex flex-col">
+                          {/* Image */}
+                          <div className="relative h-48 w-full overflow-hidden bg-gray-200">
+                            {post.image_url ? (
+                              <Image
+                                src={post.image_url}
+                                alt={post.title}
+                                width={400}
+                                height={192}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                            ) : (
+                              <>
+                                <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300" />
+                                <div className="absolute inset-0 bg-gradient-to-br from-[#FF007F]/20 to-[#4A90E2]/20" />
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <div className="w-20 h-20 bg-white/30 rounded-full flex items-center justify-center backdrop-blur-sm">
+                                    <BookOpen className="w-10 h-10 text-white" />
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                            {/* Category Badge */}
+                            {post.category && (
+                              <div className="absolute top-4 left-4 z-10">
+                                <span className="px-3 py-1 bg-[#FF007F] text-white text-xs font-semibold rounded-full">
+                                  {post.category}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Content */}
+                          <div className="p-6 flex-1 flex flex-col">
+                            {/* Title */}
+                            <h2 className="text-lg font-bold text-[#333333] mb-3 group-hover:text-[#FF007F] transition-colors line-clamp-2">
+                              {post.title}
+                            </h2>
+
+                            {/* Excerpt */}
+                            {post.excerpt && (
+                              <p className="text-sm text-[#666666] mb-4 line-clamp-2">
+                                {post.excerpt}
+                              </p>
+                            )}
+
+                            {/* Tags */}
+                            {post.tags && post.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mb-4">
+                                {post.tags.slice(0, 3).map((tag, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded"
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Read More Button */}
+                            <div className="mt-auto">
+                              <button className="w-full px-4 py-2 bg-[#FF007F] hover:bg-[#00CFFF] text-white font-semibold rounded-lg transition-colors">
+                                Read more
+                              </button>
                             </div>
                           </div>
-                          {/* Category Badge */}
-                          <div className="absolute top-4 left-4">
-                            <span className="px-3 py-1 bg-[#FF007F] text-white text-xs font-semibold rounded-full">
-                              {post.category}
-                            </span>
-                          </div>
                         </div>
-
-                        {/* Content */}
-                        <div className="p-6 flex-1 flex flex-col">
-                          {/* Title */}
-                          <h2 className="text-lg font-bold text-[#333333] mb-3 group-hover:text-[#FF007F] transition-colors line-clamp-2">
-                            {post.title}
-                          </h2>
-
-                          {/* Tags */}
-                          <div className="flex flex-wrap gap-2 mb-4">
-                            {post.tags.map((tag, idx) => (
-                              <span
-                                key={idx}
-                                className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-
-                          {/* Read More Button */}
-                          <div className="mt-auto">
-                            <button className="w-full px-4 py-2 bg-[#FF007F] hover:bg-[#00CFFF] text-white font-semibold rounded-lg transition-colors">
-                              Read more
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </Link>
-                  </motion.div>
-                ))}
+                      </Link>
+                    </motion.div>
+                  ))
+                )}
               </div>
 
               {/* No Results */}

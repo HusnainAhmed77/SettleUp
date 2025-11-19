@@ -322,8 +322,8 @@ export function getBalanceBetween(
   user1Id: string,
   user2Id: string
 ): number {
-  const user1OwesUser2 = ledger.get(user1Id)!.get(user2Id) || 0;
-  const user2OwesUser1 = ledger.get(user2Id)!.get(user1Id) || 0;
+  const user1OwesUser2 = ledger.get(user1Id)?.get(user2Id) || 0;
+  const user2OwesUser1 = ledger.get(user2Id)?.get(user1Id) || 0;
   
   return user2OwesUser1 - user1OwesUser2;
 }

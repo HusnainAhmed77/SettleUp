@@ -8,12 +8,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, ChevronDown, User, Settings, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Avatar from "@/components/ui/Avatar";
-import { navbarService, NavLink } from "@/services/navbarService";
+import { navbarService, NavLink, NavButton } from "@/services/navbarService";
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [navLinks, setNavLinks] = useState<NavLink[]>([]);
+  const [loginButton, setLoginButton] = useState<NavButton | null>(null);
+  const [signupButton, setSignupButton] = useState<NavButton | null>(null);
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
 
@@ -27,14 +29,20 @@ export default function Navbar() {
 
   const isActive = (path: string) => pathname === path;
 
-  // Fetch navigation links from Appwrite
+  // Fetch navigation links and buttons from Appwrite
   useEffect(() => {
-    async function fetchNavLinks() {
+    async function fetchNavData() {
       try {
-        const links = await navbarService.getAllLinks();
+        const [links, buttons] = await Promise.all([
+          navbarService.getAllLinks(),
+          navbarService.getButtons()
+        ]);
+        
         setNavLinks(links);
+        setLoginButton(buttons.login || null);
+        setSignupButton(buttons.signup || null);
       } catch (error) {
-        console.error('Error loading navigation links:', error);
+        console.error('Error loading navigation data:', error);
         // Fallback to default links if Appwrite fails
         setNavLinks([
           { $id: '1', label: 'Home', href: '/', order: 0, is_active: true },
@@ -44,12 +52,14 @@ export default function Navbar() {
           { $id: '5', label: 'FAQ', href: '/faq', order: 4, is_active: true },
           { $id: '6', label: 'Blog', href: '/blog', order: 5, is_active: true },
         ]);
+        setLoginButton({ $id: '1', button_type: 'login', label: 'Log in', href: '/auth?mode=signin', is_active: true });
+        setSignupButton({ $id: '2', button_type: 'signup', label: 'Sign up', href: '/auth?mode=signup', is_active: true });
       } finally {
         setLoading(false);
       }
     }
     
-    fetchNavLinks();
+    fetchNavData();
   }, []);
 
   return (
@@ -153,18 +163,22 @@ export default function Navbar() {
               </div>
             ) : (
               <>
-                <Link
-                  href="/auth?mode=signin"
-                  className="text-gray-700 hover:text-[#00CFFF] font-medium transition-colors px-4 py-2 rounded-lg hover:bg-[#00CFFF]/10"
-                >
-                  Log in
-                </Link>
-                <Link
-                  href="/auth?mode=signup"
-                  className="bg-[#FF007F] text-white px-6 py-2.5 rounded-lg hover:bg-[#E6006F] font-semibold transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-                >
-                  Sign up
-                </Link>
+                {loginButton && (
+                  <Link
+                    href={loginButton.href}
+                    className="text-gray-700 hover:text-[#00CFFF] font-medium transition-colors px-4 py-2 rounded-lg hover:bg-[#00CFFF]/10"
+                  >
+                    {loginButton.label}
+                  </Link>
+                )}
+                {signupButton && (
+                  <Link
+                    href={signupButton.href}
+                    className="bg-[#FF007F] text-white px-6 py-2.5 rounded-lg hover:bg-[#E6006F] font-semibold transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                  >
+                    {signupButton.label}
+                  </Link>
+                )}
               </>
             )}
           </div>
@@ -244,20 +258,24 @@ export default function Navbar() {
                       </>
                     ) : (
                       <>
-                        <Link
-                          href="/auth?mode=signin"
-                          className="px-4 py-3 text-base font-medium text-gray-700 hover:text-[#00CFFF] hover:bg-[#00CFFF]/10 rounded-lg transition-colors"
-                          onClick={() => setMobileMenuOpen(false)}
-                        >
-                          Log in
-                        </Link>
-                        <Link
-                          href="/auth?mode=signup"
-                          className="bg-[#FF007F] text-white px-6 py-3 rounded-lg hover:bg-[#E6006F] font-semibold transition-all text-center shadow-md"
-                          onClick={() => setMobileMenuOpen(false)}
-                        >
-                          Sign up
-                        </Link>
+                        {loginButton && (
+                          <Link
+                            href={loginButton.href}
+                            className="px-4 py-3 text-base font-medium text-gray-700 hover:text-[#00CFFF] hover:bg-[#00CFFF]/10 rounded-lg transition-colors"
+                            onClick={() => setMobileMenuOpen(false)}
+                          >
+                            {loginButton.label}
+                          </Link>
+                        )}
+                        {signupButton && (
+                          <Link
+                            href={signupButton.href}
+                            className="bg-[#FF007F] text-white px-6 py-3 rounded-lg hover:bg-[#E6006F] font-semibold transition-all text-center shadow-md"
+                            onClick={() => setMobileMenuOpen(false)}
+                          >
+                            {signupButton.label}
+                          </Link>
+                        )}
                       </>
                     )}
                   </div>

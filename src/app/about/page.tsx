@@ -5,101 +5,53 @@ import { Users, Heart, Shield, Zap, Facebook, Twitter, Linkedin, Mail } from 'lu
 import Image from 'next/image';
 import ScrollReveal from '@/components/animations/ScrollReveal';
 import Button from '@/components/ui/Button';
+import { useState, useEffect } from 'react';
+import { aboutService, AboutSection, AboutValue, TeamMember } from '@/services/aboutService';
 
 export const dynamic = 'force-dynamic';
 
-const teamMembers = [
-  {
-    name: 'Sarah Johnson',
-    role: 'CEO & Co-Founder',
-    bio: 'Passionate about making financial management accessible to everyone.',
-    avatar: '👩‍💼',
-    social: { twitter: '#', linkedin: '#', email: 'sarah@settleup.com' }
-  },
-  {
-    name: 'Michael Chen',
-    role: 'CTO & Co-Founder',
-    bio: 'Building scalable solutions that millions of people rely on daily.',
-    avatar: '👨‍💻',
-    social: { twitter: '#', linkedin: '#', email: 'michael@settleup.com' }
-  },
-  {
-    name: 'Emily Rodriguez',
-    role: 'Head of Design',
-    bio: 'Creating beautiful, intuitive experiences that users love.',
-    avatar: '👩‍🎨',
-    social: { twitter: '#', linkedin: '#', email: 'emily@settleup.com' }
-  },
-  {
-    name: 'David Park',
-    role: 'Lead Engineer',
-    bio: 'Crafting robust, efficient code that powers our platform.',
-    avatar: '👨‍🔧',
-    social: { twitter: '#', linkedin: '#', email: 'david@settleup.com' }
-  },
-  {
-    name: 'Jessica Martinez',
-    role: 'Product Manager',
-    bio: 'Driving product vision and ensuring user needs are met.',
-    avatar: '👩‍💼',
-    social: { twitter: '#', linkedin: '#', email: 'jessica@settleup.com' }
-  },
-  {
-    name: 'Ryan Thompson',
-    role: 'Senior Developer',
-    bio: 'Passionate about clean code and innovative solutions.',
-    avatar: '👨‍💻',
-    social: { twitter: '#', linkedin: '#', email: 'ryan@settleup.com' }
-  },
-  {
-    name: 'Sophia Lee',
-    role: 'UX Researcher',
-    bio: 'Understanding user behavior to improve experiences.',
-    avatar: '👩‍🔬',
-    social: { twitter: '#', linkedin: '#', email: 'sophia@settleup.com' }
-  },
-  {
-    name: 'James Wilson',
-    role: 'DevOps Engineer',
-    bio: 'Ensuring smooth deployments and system reliability.',
-    avatar: '👨‍🔧',
-    social: { twitter: '#', linkedin: '#', email: 'james@settleup.com' }
-  },
-  {
-    name: 'Amanda Foster',
-    role: 'Marketing Director',
-    bio: 'Spreading the word about making expense sharing easy.',
-    avatar: '👩‍💼',
-    social: { twitter: '#', linkedin: '#', email: 'amanda@settleup.com' }
-  },
-  {
-    name: 'Kevin Patel',
-    role: 'Data Scientist',
-    bio: 'Turning data into insights that drive better decisions.',
-    avatar: '👨‍💻',
-    social: { twitter: '#', linkedin: '#', email: 'kevin@settleup.com' }
-  },
-  {
-    name: 'Lisa Anderson',
-    role: 'Customer Success',
-    bio: 'Helping users get the most out of our platform.',
-    avatar: '👩‍💼',
-    social: { twitter: '#', linkedin: '#', email: 'lisa@settleup.com' }
-  },
-  {
-    name: 'Marcus Brown',
-    role: 'Security Engineer',
-    bio: 'Protecting user data and maintaining platform security.',
-    avatar: '👨‍💻',
-    social: { twitter: '#', linkedin: '#', email: 'marcus@settleup.com' }
-  }
-];
-
 export default function AboutPage() {
+  const [sections, setSections] = useState<AboutSection[]>([]);
+  const [values, setValues] = useState<AboutValue[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchAboutData() {
+      try {
+        const [sectionsData, valuesData, teamData] = await Promise.all([
+          aboutService.getAllSections(),
+          aboutService.getValues(),
+          aboutService.getTeamMembers()
+        ]);
+        
+        setSections(sectionsData);
+        setValues(valuesData);
+        setTeamMembers(teamData);
+      } catch (error) {
+        console.error('Error loading about page data:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    fetchAboutData();
+  }, []);
+
+  const getSection = (sectionId: string) => {
+    return sections.find(s => s.section_id === sectionId);
+  };
+
+  const getIconComponent = (iconName: string) => {
+    const icons: Record<string, any> = {
+      Users, Heart, Shield, Zap
+    };
+    return icons[iconName] || Users;
+  };
   return (
     <div className="min-h-screen relative overflow-hidden">
       {/* Facets Background Image */}
-      <div className="fixed inset-0 z-0">
+      <div className="absolute inset-0 z-0">
         <Image
           src="/images/facets.png"
           alt="Background pattern"
@@ -109,42 +61,59 @@ export default function AboutPage() {
       </div>
 
       {/* Magenta Gradient Overlay */}
-      <div className="fixed inset-0 bg-gradient-to-br from-[#FF007F]/10 via-transparent to-[#00CFFF]/10 z-0"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-[#FF007F]/10 via-transparent to-[#00CFFF]/10 z-0"></div>
 
       <div className="relative z-10">
       {/* What is SettleUp Section */}
       <section className="relative py-20 overflow-hidden">
         <div className="container mx-auto px-4">
           <div className="max-w-6xl mx-auto">
-            <div className="grid lg:grid-cols-2 gap-8 items-center">
-              {/* Left Content */}
-              <ScrollReveal animation="fadeInLeft">
+            {loading ? (
+              <div className="grid lg:grid-cols-2 gap-8 items-center">
                 <div>
-                  <p className="text-sm font-semibold text-[#FF007F] uppercase tracking-wider mb-3">
-                    ABOUT US
-                  </p>
-                  <h2 className="text-4xl md:text-5xl font-bold mb-6 text-[#333333] leading-tight">
-                    What is SettleUp?
-                  </h2>
-                  <p className="text-lg text-[#666666] leading-relaxed">
-                    SettleUp is a Providence, RI-based company that makes it easy to split bills with friends and family. We organize all your shared expenses and IOUs in one place, so that everyone can see who they owe. Whether you are sharing a ski vacation, splitting rent with roommates, or paying someone back for lunch, SettleUp makes life easier. We store your data in the cloud so that you can access it anywhere: on iPhone, Android, or on your computer.
-                  </p>
+                  <div className="h-4 w-24 bg-gray-200 rounded mb-3 animate-pulse"></div>
+                  <div className="h-12 w-3/4 bg-gray-200 rounded mb-6 animate-pulse"></div>
+                  <div className="space-y-3">
+                    <div className="h-4 w-full bg-gray-200 rounded animate-pulse"></div>
+                    <div className="h-4 w-full bg-gray-200 rounded animate-pulse"></div>
+                    <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse"></div>
+                  </div>
                 </div>
-              </ScrollReveal>
+                <div className="h-96 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            ) : (
+              <div className="grid lg:grid-cols-2 gap-8 items-center">
+                {/* Left Content */}
+                <ScrollReveal animation="fadeInLeft">
+                  <div>
+                    {getSection('hero')?.subheading && (
+                      <p className="text-sm font-semibold text-[#FF007F] uppercase tracking-wider mb-3">
+                        {getSection('hero')?.subheading}
+                      </p>
+                    )}
+                    <h2 className="text-4xl md:text-5xl font-bold mb-6 text-[#333333] leading-tight">
+                      {getSection('hero')?.heading || 'What is SettleUp?'}
+                    </h2>
+                    <p className="text-lg text-[#666666] leading-relaxed">
+                      {getSection('hero')?.content}
+                    </p>
+                  </div>
+                </ScrollReveal>
 
-              {/* Right Image */}
-              <ScrollReveal animation="fadeInRight" delay={0.2}>
-                <div className="relative">
-                  <Image
-                    src="/imgs/hero-object.png"
-                    alt="About SettleUp"
-                    width={1000}
-                    height={1000}
-                    className="object-contain"
-                  />
-                </div>
-              </ScrollReveal>
-            </div>
+                {/* Right Image */}
+                <ScrollReveal animation="fadeInRight" delay={0.2}>
+                  <div className="relative">
+                    <Image
+                      src={getSection('hero')?.image_url || '/imgs/hero-object.png'}
+                      alt="About SettleUp"
+                      width={1000}
+                      height={1000}
+                      className="object-contain"
+                    />
+                  </div>
+                </ScrollReveal>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -153,26 +122,36 @@ export default function AboutPage() {
       <section className="py-20 bg-white">
         <div className="container mx-auto px-4">
           <ScrollReveal animation="fadeInUp">
-            <h2 className="text-4xl font-bold text-center mb-16 text-gray-900">Why Choose SettleUp?</h2>
+            <h2 className="text-4xl font-bold text-center mb-16 text-gray-900">
+              {getSection('values_heading')?.heading || 'Why Choose SettleUp?'}
+            </h2>
           </ScrollReveal>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
-            {[
-              { icon: Users, title: 'User-Friendly', desc: 'Intuitive design that anyone can use', color: 'teal' },
-              { icon: Heart, title: 'Fair & Honest', desc: 'Promoting fairness in every transaction', color: 'rose' },
-              { icon: Shield, title: 'Secure', desc: 'Your data is protected and private', color: 'blue' },
-              { icon: Zap, title: 'Fast & Reliable', desc: 'Lightning-fast performance you can trust', color: 'amber' }
-            ].map((value, index) => (
-              <ScrollReveal key={index} animation="fadeInUp" delay={index * 0.1}>
-                <div className="text-center p-6 rounded-xl hover:shadow-xl transition-shadow duration-300 bg-white/50 backdrop-blur-sm">
-                  <div className={`w-16 h-16 mx-auto mb-4 rounded-full bg-${value.color}-100 flex items-center justify-center`}>
-                    <value.icon className={`w-8 h-8 text-${value.color}-600`} />
-                  </div>
-                  <h3 className="text-xl font-bold mb-2 text-gray-900">{value.title}</h3>
-                  <p className="text-gray-600">{value.desc}</p>
+            {loading ? (
+              [...Array(4)].map((_, i) => (
+                <div key={i} className="text-center p-6 rounded-xl bg-white/50 backdrop-blur-sm">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-200 animate-pulse"></div>
+                  <div className="h-6 w-32 mx-auto mb-2 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-4 w-full bg-gray-200 rounded animate-pulse"></div>
                 </div>
-              </ScrollReveal>
-            ))}
+              ))
+            ) : (
+              values.map((value, index) => {
+                const IconComponent = getIconComponent(value.icon);
+                return (
+                  <ScrollReveal key={value.$id} animation="fadeInUp" delay={index * 0.1}>
+                    <div className="text-center p-6 rounded-xl hover:shadow-xl transition-shadow duration-300 bg-white/50 backdrop-blur-sm">
+                      <div className={`w-16 h-16 mx-auto mb-4 rounded-full bg-${value.color}-100 flex items-center justify-center`}>
+                        <IconComponent className={`w-8 h-8 text-${value.color}-600`} />
+                      </div>
+                      <h3 className="text-xl font-bold mb-2 text-gray-900">{value.title}</h3>
+                      <p className="text-gray-600">{value.description}</p>
+                    </div>
+                  </ScrollReveal>
+                );
+              })
+            )}
           </div>
         </div>
       </section>
@@ -186,10 +165,10 @@ export default function AboutPage() {
               <ScrollReveal animation="fadeInLeft">
                 <div>
                   <h2 className="text-4xl md:text-5xl font-bold mb-6 text-[#333333] leading-tight">
-                    User-Friendly
+                    {getSection('user_friendly')?.heading || 'User-Friendly'}
                   </h2>
                   <p className="text-lg text-[#666666] leading-relaxed">
-                    Intuitive design that anyone can use. Our interface is designed with simplicity and clarity in mind, making it effortless for everyone to track and split expenses without any learning curve. Whether you're tech-savvy or just getting started, SettleUp provides a seamless experience that feels natural from day one. Every feature is thoughtfully placed, every button clearly labeled, ensuring you spend less time figuring things out and more time enjoying life with friends and family.
+                    {getSection('user_friendly')?.content}
                   </p>
                 </div>
               </ScrollReveal>
@@ -275,10 +254,10 @@ export default function AboutPage() {
               <ScrollReveal animation="fadeInRight" delay={0.2}>
                 <div>
                   <h2 className="text-4xl md:text-5xl font-bold mb-6 text-[#333333] leading-tight">
-                    Fair & Honest
+                    {getSection('fair_honest')?.heading || 'Fair & Honest'}
                   </h2>
                   <p className="text-lg text-[#666666] leading-relaxed">
-                    Promoting fairness in every transaction. We believe in transparency and honesty, ensuring that everyone pays their fair share without any confusion or disputes. Our platform is built on the principle that financial relationships should strengthen bonds, not strain them. With clear breakdowns, fair calculations, and transparent tracking, we help maintain trust and harmony in all your shared expenses, whether it's with roommates, travel companions, or family members.
+                    {getSection('fair_honest')?.content}
                   </p>
                 </div>
               </ScrollReveal>
@@ -296,10 +275,10 @@ export default function AboutPage() {
               <ScrollReveal animation="fadeInLeft">
                 <div>
                   <h2 className="text-4xl md:text-5xl font-bold mb-6 text-[#333333] leading-tight">
-                    Secure
+                    {getSection('secure')?.heading || 'Secure'}
                   </h2>
                   <p className="text-lg text-[#666666] leading-relaxed">
-                    Your data is protected and private. We use industry-standard encryption and advanced security measures to ensure your financial information stays safe and confidential at all times. Your privacy is our top priority, and we never share your personal data with third parties. With secure cloud storage, encrypted connections, and regular security audits, you can trust that your expense information is protected with the same level of security used by major financial institutions.
+                    {getSection('secure')?.content}
                   </p>
                 </div>
               </ScrollReveal>
@@ -370,10 +349,10 @@ export default function AboutPage() {
               <ScrollReveal animation="fadeInRight" delay={0.2}>
                 <div>
                   <h2 className="text-4xl md:text-5xl font-bold mb-6 text-[#333333] leading-tight">
-                    Fast & Reliable
+                    {getSection('fast_reliable')?.heading || 'Fast & Reliable'}
                   </h2>
                   <p className="text-lg text-[#666666] leading-relaxed">
-                    Lightning-fast performance you can trust. Our platform is built for speed and reliability, ensuring you can manage your expenses anytime, anywhere without delays or interruptions. With optimized code, efficient servers, and smart caching, SettleUp responds instantly to your actions. Whether you're adding an expense on the go, settling up with friends, or checking your balance, everything happens in real-time with the reliability you need to stay on top of your shared finances.
+                    {getSection('fast_reliable')?.content}
                   </p>
                 </div>
               </ScrollReveal>
@@ -387,64 +366,81 @@ export default function AboutPage() {
         <div className="container mx-auto px-4">
           <ScrollReveal animation="fadeInUp">
             <h2 className="text-4xl md:text-5xl font-bold text-center mb-4 text-gray-900">
-              Meet Our Team
+              {getSection('team_heading')?.heading || 'Meet Our Team'}
             </h2>
             <p className="text-center text-gray-600 mb-16 max-w-2xl mx-auto">
-              We're a passionate team of developers, designers, and support specialists working to make shared expenses easier for everyone.
+              {getSection('team_heading')?.subheading || "We're a passionate team of developers, designers, and support specialists working to make shared expenses easier for everyone."}
             </p>
           </ScrollReveal>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-7xl mx-auto">
-            {teamMembers.map((member, index) => (
-              <ScrollReveal key={index} animation="fadeInUp" delay={index * 0.1}>
-                <motion.div
-                  whileHover={{ y: -10 }}
-                  className="bg-white rounded-2xl shadow-lg overflow-hidden transition-shadow duration-300 hover:shadow-2xl h-full flex flex-col"
-                >
-                  <div className="p-8 flex flex-col flex-1">
-                    {/* Avatar with gradient border */}
-                    <div className="relative w-32 h-32 mx-auto mb-6 flex-shrink-0">
-                      <div className="absolute inset-0 bg-gradient-to-br from-[#00CFFF] to-blue-500 rounded-full"></div>
-                      <div className="absolute inset-1 bg-white rounded-full flex items-center justify-center">
-                        <span className="text-5xl">{member.avatar}</span>
+            {loading ? (
+              [...Array(8)].map((_, i) => (
+                <div key={i} className="bg-white rounded-2xl shadow-lg p-8">
+                  <div className="w-32 h-32 mx-auto mb-6 bg-gray-200 rounded-full animate-pulse"></div>
+                  <div className="h-6 w-32 mx-auto mb-2 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-4 w-24 mx-auto mb-3 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-4 w-full bg-gray-200 rounded animate-pulse"></div>
+                </div>
+              ))
+            ) : (
+              teamMembers.map((member, index) => (
+                <ScrollReveal key={member.$id} animation="fadeInUp" delay={index * 0.1}>
+                  <motion.div
+                    whileHover={{ y: -10 }}
+                    className="bg-white rounded-2xl shadow-lg overflow-hidden transition-shadow duration-300 hover:shadow-2xl h-full flex flex-col"
+                  >
+                    <div className="p-8 flex flex-col flex-1">
+                      {/* Avatar with gradient border */}
+                      <div className="relative w-32 h-32 mx-auto mb-6 flex-shrink-0">
+                        <div className="absolute inset-0 bg-gradient-to-br from-[#00CFFF] to-blue-500 rounded-full"></div>
+                        <div className="absolute inset-1 bg-white rounded-full flex items-center justify-center">
+                          <span className="text-5xl">{member.avatar}</span>
+                        </div>
+                      </div>
+
+                      {/* Member Info */}
+                      <div className="text-center mb-6 flex-1 flex flex-col justify-center">
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">{member.name}</h3>
+                        <p className="text-sm font-semibold text-[#E6006F] mb-3">{member.role}</p>
+                        <p className="text-sm text-gray-600 italic line-clamp-3">{member.bio}</p>
+                      </div>
+
+                      {/* Social Links */}
+                      <div className="flex justify-center gap-3 pt-4 border-t border-gray-100 flex-shrink-0">
+                        {member.twitter && (
+                          <a
+                            href={member.twitter}
+                            className="w-10 h-10 rounded-full bg-gray-100 hover:bg-blue-500 hover:text-white flex items-center justify-center transition-colors duration-300"
+                            aria-label="Twitter"
+                          >
+                            <Twitter className="w-4 h-4" />
+                          </a>
+                        )}
+                        {member.linkedin && (
+                          <a
+                            href={member.linkedin}
+                            className="w-10 h-10 rounded-full bg-gray-100 hover:bg-blue-700 hover:text-white flex items-center justify-center transition-colors duration-300"
+                            aria-label="LinkedIn"
+                          >
+                            <Linkedin className="w-4 h-4" />
+                          </a>
+                        )}
+                        {member.email && (
+                          <a
+                            href={`mailto:${member.email}`}
+                            className="w-10 h-10 rounded-full bg-gray-100 hover:bg-[#FF007F] hover:text-white flex items-center justify-center transition-colors duration-300"
+                            aria-label="Email"
+                          >
+                            <Mail className="w-4 h-4" />
+                          </a>
+                        )}
                       </div>
                     </div>
-
-                    {/* Member Info */}
-                    <div className="text-center mb-6 flex-1 flex flex-col justify-center">
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">{member.name}</h3>
-                      <p className="text-sm font-semibold text-[#E6006F] mb-3">{member.role}</p>
-                      <p className="text-sm text-gray-600 italic line-clamp-3">{member.bio}</p>
-                    </div>
-
-                    {/* Social Links */}
-                    <div className="flex justify-center gap-3 pt-4 border-t border-gray-100 flex-shrink-0">
-                      <a
-                        href={member.social.twitter}
-                        className="w-10 h-10 rounded-full bg-gray-100 hover:bg-blue-500 hover:text-white flex items-center justify-center transition-colors duration-300"
-                        aria-label="Twitter"
-                      >
-                        <Twitter className="w-4 h-4" />
-                      </a>
-                      <a
-                        href={member.social.linkedin}
-                        className="w-10 h-10 rounded-full bg-gray-100 hover:bg-blue-700 hover:text-white flex items-center justify-center transition-colors duration-300"
-                        aria-label="LinkedIn"
-                      >
-                        <Linkedin className="w-4 h-4" />
-                      </a>
-                      <a
-                        href={`mailto:${member.social.email}`}
-                        className="w-10 h-10 rounded-full bg-gray-100 hover:bg-[#FF007F] hover:text-white flex items-center justify-center transition-colors duration-300"
-                        aria-label="Email"
-                      >
-                        <Mail className="w-4 h-4" />
-                      </a>
-                    </div>
-                  </div>
-                </motion.div>
-              </ScrollReveal>
-            ))}
+                  </motion.div>
+                </ScrollReveal>
+              ))
+            )}
           </div>
         </div>
       </section>

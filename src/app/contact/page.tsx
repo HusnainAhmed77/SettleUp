@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Mail, Phone, MapPin, Send } from 'lucide-react';
+import { getContactPageContent, createContactSubmission, ContactPageContent } from '@/lib/services/contactService';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,13 +18,57 @@ export default function ContactPage() {
   });
 
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [contentLoading, setContentLoading] = useState(true);
+  const [pageContent, setPageContent] = useState<ContactPageContent>({
+    heroTitle: 'Contact Us',
+    heroDescription: 'Not sure what you need? The team at SplitWise will be happy to listen to you and suggest event ideas you hadn\'t considered!',
+    email: 'support@settleup.com',
+    phone: '+1 (212) 555-1234',
+    supportText: 'Support'
+  });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Fetch dynamic content on mount
+  useEffect(() => {
+    async function fetchContent() {
+      try {
+        const content = await getContactPageContent();
+        setPageContent(content);
+      } catch (err) {
+        console.error('Failed to load contact page content:', err);
+        // Keep fallback content if fetch fails
+      } finally {
+        setContentLoading(false);
+      }
+    }
+    fetchContent();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission here
-    console.log('Form submitted:', formData);
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 3000);
+    setLoading(true);
+    setError(null);
+
+    try {
+      await createContactSubmission(formData);
+      setSubmitted(true);
+      // Reset form after successful submission
+      setFormData({
+        fullName: '',
+        company: '',
+        email: '',
+        phone: '',
+        address: '',
+        message: ''
+      });
+      setTimeout(() => setSubmitted(false), 5000);
+    } catch (err) {
+      console.error('Failed to submit contact form:', err);
+      setError('Failed to send message. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -36,7 +81,7 @@ export default function ContactPage() {
   return (
     <div className="min-h-screen relative flex items-center justify-center p-4 lg:p-8">
       {/* Facets Background Image */}
-      <div className="fixed inset-0 z-0">
+      <div className="absolute inset-0 z-0">
         <div 
           className="absolute inset-0" 
           style={{
@@ -49,7 +94,7 @@ export default function ContactPage() {
       </div>
 
       {/* Magenta Gradient Overlay */}
-      <div className="fixed inset-0 bg-gradient-to-br from-[#FF007F]/10 via-transparent to-[#00CFFF]/10 z-0"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-[#FF007F]/10 via-transparent to-[#00CFFF]/10 z-0"></div>
 
       <div className="grid lg:grid-cols-2 max-w-7xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden relative z-10">
         {/* Left Side - Contact Info */}
@@ -61,10 +106,10 @@ export default function ContactPage() {
             className="max-w-lg z-10"
           >
             <h1 className="text-4xl md:text-5xl font-bold mb-6">
-              Contact Us
+              {contentLoading ? 'Contact Us' : pageContent.heroTitle}
             </h1>
             <p className="text-lg text-white/90 mb-10 leading-relaxed">
-              Not sure what you need? The team at SplitWise will be happy to listen to you and suggest event ideas you hadn't considered!
+              {contentLoading ? 'Loading...' : pageContent.heroDescription}
             </p>
 
             {/* Contact Details */}
@@ -76,10 +121,10 @@ export default function ContactPage() {
                 <div>
                   <h3 className="font-semibold text-lg mb-1">Email</h3>
                   <a 
-                    href="mailto:support@settleup.com" 
+                    href={`mailto:${pageContent.email}`}
                     className="text-white/90 hover:text-white transition-colors"
                   >
-                    support@settleup.com
+                    {contentLoading ? 'Loading...' : pageContent.email}
                   </a>
                 </div>
               </div>
@@ -89,12 +134,12 @@ export default function ContactPage() {
                   <Phone className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg mb-1">Support</h3>
+                  <h3 className="font-semibold text-lg mb-1">{contentLoading ? 'Support' : pageContent.supportText}</h3>
                   <a 
-                    href="tel:+12125551234" 
+                    href={`tel:${pageContent.phone.replace(/\s/g, '')}`}
                     className="text-white/90 hover:text-white transition-colors"
                   >
-                    +1 (212) 555-1234
+                    {contentLoading ? 'Loading...' : pageContent.phone}
                   </a>
                 </div>
               </div>
@@ -228,10 +273,11 @@ export default function ContactPage() {
               {/* Submit Button */}
               <button
                 type="submit"
-                className="w-full bg-[#FF007F] hover:bg-[#00CFFF] text-white font-semibold py-4 px-6 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2 group"
+                disabled={loading}
+                className="w-full bg-[#FF007F] hover:bg-[#00CFFF] text-white font-semibold py-4 px-6 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span>Send Message</span>
-                <Send className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                <span>{loading ? 'Sending...' : 'Send Message'}</span>
+                {!loading && <Send className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
               </button>
 
               {/* Success Message */}
@@ -242,6 +288,17 @@ export default function ContactPage() {
                   className="p-4 bg-green-50 border-2 border-green-200 rounded-lg text-green-700 text-center font-medium"
                 >
                   ✓ Message sent successfully! We'll get back to you soon.
+                </motion.div>
+              )}
+
+              {/* Error Message */}
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 bg-red-50 border-2 border-red-200 rounded-lg text-red-700 text-center font-medium"
+                >
+                  {error}
                 </motion.div>
               )}
             </form>

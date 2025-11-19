@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, 
@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
+import { featuresService, Feature as FeatureType } from '@/services/featuresService';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,8 +29,40 @@ interface Feature {
 
 export default function FeaturesPage() {
   const [expandedCards, setExpandedCards] = useState<number[]>([]);
+  const [hero, setHero] = useState<FeatureType | null>(null);
+  const [features, setFeatures] = useState<FeatureType[]>([]);
+  const [cta, setCta] = useState<FeatureType | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const features: Feature[] = [
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const [heroData, featuresData, ctaData] = await Promise.all([
+          featuresService.getHero(),
+          featuresService.getFeatureCards(),
+          featuresService.getCTA()
+        ]);
+        setHero(heroData);
+        setFeatures(featuresData);
+        setCta(ctaData);
+      } catch (error) {
+        console.error('Error loading features:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  const getIcon = (iconName?: string) => {
+    const icons: Record<string, any> = {
+      Users, Receipt, DollarSign, Bell, Smartphone, 
+      PieChart, Globe, Camera, TrendingUp
+    };
+    return icons[iconName || 'Users'] || Users;
+  };
+
+  const fallbackFeatures: Feature[] = [
     {
       title: "Track Balances",
       description: "Keep track of shared expenses, balances, and who owes who in real-time.",
@@ -106,7 +139,7 @@ export default function FeaturesPage() {
   return (
     <div className="min-h-screen relative">
       {/* Facets Background Image */}
-      <div className="fixed inset-0 z-0">
+      <div className="absolute inset-0 z-0">
         <div 
           className="absolute inset-0" 
           style={{
@@ -119,7 +152,7 @@ export default function FeaturesPage() {
       </div>
 
       {/* Magenta Gradient Overlay */}
-      <div className="fixed inset-0 bg-gradient-to-br from-[#FF007F]/10 via-transparent to-[#00CFFF]/10 z-0"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-[#FF007F]/10 via-transparent to-[#00CFFF]/10 z-0"></div>
 
       <div className="relative z-10">
       {/* Hero Section */}
@@ -133,12 +166,21 @@ export default function FeaturesPage() {
             <p className="text-sm font-semibold text-[#FF007F] tracking-wider mb-4">
               FEATURES
             </p>
-            <h1 className="text-5xl md:text-6xl font-bold text-[#333333] mb-6">
-              Our Features & Services.
-            </h1>
-            <p className="text-xl text-[#666666] max-w-2xl mx-auto">
-              Everything you need to split expenses and track shared costs with ease and transparency.
-            </p>
+            {loading ? (
+              <>
+                <div className="h-16 w-3/4 mx-auto bg-gray-200 rounded animate-pulse mb-6"></div>
+                <div className="h-8 w-1/2 mx-auto bg-gray-200 rounded animate-pulse"></div>
+              </>
+            ) : (
+              <>
+                <h1 className="text-5xl md:text-6xl font-bold text-[#333333] mb-6">
+                  {hero?.title || 'Our Features & Services.'}
+                </h1>
+                <p className="text-xl text-[#666666] max-w-2xl mx-auto">
+                  {hero?.description || 'Everything you need to split expenses and track shared costs with ease and transparency.'}
+                </p>
+              </>
+            )}
           </motion.div>
         </div>
       </div>
@@ -146,9 +188,21 @@ export default function FeaturesPage() {
       {/* Features Grid */}
       <main className="container mx-auto px-4 py-16">
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
-          {features.map((feature, index) => {
-            const Icon = feature.icon;
-            const isExpanded = expandedCards.includes(index);
+          {loading ? (
+            // Loading skeleton
+            [...Array(9)].map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                <div className="h-48 bg-gray-200 animate-pulse"></div>
+                <div className="p-6">
+                  <div className="h-8 bg-gray-200 rounded animate-pulse mb-3"></div>
+                  <div className="h-20 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+              </div>
+            ))
+          ) : (
+            features.map((feature, index) => {
+              const Icon = getIcon(feature.icon);
+              const isExpanded = expandedCards.includes(index);
 
             return (
               <motion.div
@@ -159,7 +213,7 @@ export default function FeaturesPage() {
                 className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden"
               >
                 {/* Icon Section */}
-                <div className={`relative h-48 bg-gradient-to-br ${feature.color} flex items-center justify-center`}>
+                <div className={`relative h-48 bg-gradient-to-br ${feature.color || 'from-blue-400 to-blue-600'} flex items-center justify-center`}>
                   <div className="relative z-10">
                     <Icon className="w-24 h-24 text-white" strokeWidth={1.5} />
                   </div>
@@ -179,7 +233,7 @@ export default function FeaturesPage() {
 
                   {/* Expanded Content */}
                   <AnimatePresence>
-                    {isExpanded && (
+                    {isExpanded && feature.detailed_description && (
                       <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
@@ -188,7 +242,7 @@ export default function FeaturesPage() {
                         className="overflow-hidden"
                       >
                         <p className="text-[#666666] mb-4 leading-relaxed border-t border-gray-100 pt-4">
-                          {feature.detailedDescription}
+                          {feature.detailed_description}
                         </p>
                       </motion.div>
                     )}
@@ -209,7 +263,8 @@ export default function FeaturesPage() {
                 </div>
               </motion.div>
             );
-          })}
+          })
+          )}
         </div>
       </main>
 
@@ -237,12 +292,21 @@ export default function FeaturesPage() {
             viewport={{ once: true }}
             className="max-w-3xl mx-auto text-white"
           >
-            <h2 className="text-4xl md:text-5xl font-bold mb-6">
-              Ready to Get Started?
-            </h2>
-            <p className="text-xl text-white/90 mb-8">
-              Join thousands of users who are already managing their shared expenses with ease.
-            </p>
+            {loading ? (
+              <>
+                <div className="h-12 w-3/4 mx-auto bg-white/20 rounded animate-pulse mb-6"></div>
+                <div className="h-8 w-1/2 mx-auto bg-white/20 rounded animate-pulse mb-8"></div>
+              </>
+            ) : (
+              <>
+                <h2 className="text-4xl md:text-5xl font-bold mb-6">
+                  {cta?.title || 'Ready to Get Started?'}
+                </h2>
+                <p className="text-xl text-white/90 mb-8">
+                  {cta?.description || 'Join thousands of users who are already managing their shared expenses with ease.'}
+                </p>
+              </>
+            )}
             <button className="px-10 py-4 bg-white text-[#FF007F] font-bold rounded-lg hover:bg-gray-100 transition-all duration-300 shadow-xl hover:shadow-2xl transform hover:-translate-y-1 text-lg">
               Start Splitting Now
             </button>

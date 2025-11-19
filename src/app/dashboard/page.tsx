@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Plus, Users, TrendingUp, TrendingDown, ArrowRight, Wallet, Receipt, Activity, Calendar, DollarSign, PieChart as PieChartIcon } from 'lucide-react';
+import { Plus, Users, TrendingUp, TrendingDown, ArrowRight, Wallet, Receipt, Activity } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import Card, { CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Avatar, { AvatarGroup } from '@/components/ui/Avatar';
@@ -74,14 +74,7 @@ export default function DashboardPage() {
   // Calculate monthly spending
   const monthlySpending = useMemo(() => {
     const allExpenses = groups.flatMap(group => group.expenses);
-    const spending = getCurrentMonthSpending(allExpenses, currentUser.id);
-    console.log('Monthly spending calculation:', {
-      totalExpenses: allExpenses.length,
-      myExpenses: allExpenses.filter(e => e.payerId === currentUser.id),
-      spendingCents: spending,
-      spendingDollars: spending / 100
-    });
-    return spending;
+    return getCurrentMonthSpending(allExpenses, currentUser.id);
   }, [groups]);
 
   // Calculate spending by group for pie chart
@@ -102,7 +95,6 @@ export default function DashboardPage() {
       totalExpenses: allExpenses.length,
       totalGroups: groups.length,
       totalMembers: new Set(groups.flatMap(g => g.members.map(m => m.id))).size,
-      recentExpenses: allExpenses.slice(-5).reverse()
     };
   }, [groups]);
 
@@ -117,9 +109,9 @@ export default function DashboardPage() {
   const COLORS = ['#FF007F', '#00CFFF', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899'];
 
   return (
-    <div className="min-h-screen relative">
+    <div className="relative">
       {/* Facets Background Image */}
-      <div className="fixed inset-0 z-0">
+      <div className="absolute inset-0 z-0">
         <Image
           src="/images/facets.png"
           alt="Background pattern"
@@ -129,7 +121,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Magenta Gradient Overlay */}
-      <div className="fixed inset-0 bg-gradient-to-br from-[#FF007F]/10 via-transparent to-[#00CFFF]/10 z-0"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-[#FF007F]/10 via-transparent to-[#00CFFF]/10 z-0"></div>
 
       <div className="relative z-10 container mx-auto px-4 py-8">
         {/* Header */}
@@ -138,10 +130,14 @@ export default function DashboardPage() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h1 className="text-4xl font-bold mb-2 text-[#333333]">
-            Welcome back, <span className="text-[#00CFFF]">{currentUser.name}</span>!
-          </h1>
-          <p className="text-[#666666] text-lg">Here's your financial overview</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold mb-2 text-[#333333]">
+                Welcome back, <span className="text-[#00CFFF]">{currentUser.name}</span>!
+              </h1>
+              <p className="text-[#666666] text-lg">Here's your financial overview</p>
+            </div>
+          </div>
         </motion.div>
 
         {/* Balance Overview Cards */}
@@ -292,7 +288,7 @@ export default function DashboardPage() {
               <Card className="bg-white shadow-lg border-2 border-dashed border-[#00CFFF]/30">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-[#333333]">
-                    <PieChartIcon className="w-5 h-5 text-[#00CFFF]" />
+                    <Receipt className="w-5 h-5 text-[#00CFFF]" />
                     Spending by Group
                   </CardTitle>
                 </CardHeader>

@@ -145,6 +145,7 @@ async function importFeatures() {
   console.log(`${'='.repeat(50)}`);
   console.log(`✅ Success: ${successCount} features`);
   console.log(`❌ Errors: ${errorCount}`);
+  console.log('\n✅ Features page is now fully dynamic!\n');
 }
 
 importFeatures().catch(console.error);

@@ -11,6 +11,29 @@ export interface AboutSection {
   is_active: boolean;
 }
 
+export interface AboutValue {
+  $id: string;
+  title: string;
+  description: string;
+  icon: string;
+  color: string;
+  order: number;
+  is_active: boolean;
+}
+
+export interface TeamMember {
+  $id: string;
+  name: string;
+  role: string;
+  bio: string;
+  avatar: string;
+  twitter?: string;
+  linkedin?: string;
+  email?: string;
+  order: number;
+  is_active: boolean;
+}
+
 export const aboutService = {
   async getAllSections(): Promise<AboutSection[]> {
     try {
@@ -43,6 +66,40 @@ export const aboutService = {
     } catch (error) {
       console.error(`Error fetching section ${sectionId}:`, error);
       return null;
+    }
+  },
+
+  async getValues(): Promise<AboutValue[]> {
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.ABOUT_VALUES,
+        [
+          Query.equal('is_active', true),
+          Query.orderAsc('order')
+        ]
+      );
+      return response.documents as unknown as AboutValue[];
+    } catch (error) {
+      console.error('Error fetching about values:', error);
+      return [];
+    }
+  },
+
+  async getTeamMembers(): Promise<TeamMember[]> {
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.ABOUT_TEAM,
+        [
+          Query.equal('is_active', true),
+          Query.orderAsc('order')
+        ]
+      );
+      return response.documents as unknown as TeamMember[];
+    } catch (error) {
+      console.error('Error fetching team members:', error);
+      return [];
     }
   }
 };

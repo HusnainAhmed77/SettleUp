@@ -11,13 +11,21 @@ export const dynamic = 'force-dynamic';
 export default function FAQPage() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [faqs, setFaqs] = useState<FAQ[]>([]);
+  const [hero, setHero] = useState<FAQ | null>(null);
+  const [cta, setCta] = useState<FAQ | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchFAQs() {
       try {
-        const data = await faqService.getAllFAQs();
-        setFaqs(data);
+        const [faqData, heroData, ctaData] = await Promise.all([
+          faqService.getAllFAQs(),
+          faqService.getHero(),
+          faqService.getCTA()
+        ]);
+        setFaqs(faqData);
+        setHero(heroData);
+        setCta(ctaData);
       } catch (error) {
         console.error('Error loading FAQs:', error);
       } finally {
@@ -46,7 +54,7 @@ export default function FAQPage() {
   return (
     <div className="min-h-screen relative">
       {/* Facets Background Image */}
-      <div className="fixed inset-0 z-0">
+      <div className="absolute inset-0 z-0">
         <Image
           src="/images/facets.png"
           alt="Background pattern"
@@ -56,7 +64,7 @@ export default function FAQPage() {
       </div>
 
       {/* Magenta Gradient Overlay */}
-      <div className="fixed inset-0 bg-gradient-to-br from-[#FF007F]/10 via-transparent to-[#00CFFF]/10 z-0"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-[#FF007F]/10 via-transparent to-[#00CFFF]/10 z-0"></div>
 
       <div className="relative z-10">
         {/* Header */}
@@ -69,10 +77,10 @@ export default function FAQPage() {
               className="text-center max-w-3xl mx-auto"
             >
               <h1 className="text-4xl md:text-5xl font-bold mb-4">
-                Frequently Asked <span className="text-[#333333]">Questions</span>
+                {hero?.title || 'Frequently Asked Questions'}
               </h1>
               <p className="text-lg text-[#666666]">
-                Find answers to common questions about using SettleUp
+                {hero?.description || 'Find answers to common questions about using SettleUp'}
               </p>
             </motion.div>
           </div>
@@ -155,9 +163,11 @@ export default function FAQPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6, duration: 0.6 }}
           >
-            <h2 className="text-4xl lg:text-5xl font-bold mb-6">Still have questions?</h2>
+            <h2 className="text-4xl lg:text-5xl font-bold mb-6">
+              {cta?.title || 'Still have questions?'}
+            </h2>
             <p className="text-xl mb-10 max-w-2xl mx-auto opacity-90">
-              Can't find the answer you're looking for? Our support team is here to help.
+              {cta?.description || 'Can\'t find the answer you\'re looking for? Our support team is here to help.'}
             </p>
             <button
               onClick={() => (window.location.href = '/contact')}

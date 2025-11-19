@@ -98,23 +98,24 @@ export default function HomePage() {
           <div className="max-w-6xl mx-auto">
             <div className="grid lg:grid-cols-[1fr_auto] gap-16 items-center justify-center">
               {/* Left Column - Content */}
-              <div className="flex flex-col justify-center">
+              <div className="flex flex-col justify-center items-center lg:items-start text-center lg:text-left">
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.6, delay: 0.2 }}
+                  className="w-full"
                 >
                   <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 text-[#333333] leading-tight">
                     {hero?.heading || 'Less Stress When'}
                     <span className="block text-[#FF007F] mt-2">{hero?.subheading || 'Sharing Expenses'}</span>
                   </h1>
 
-                  <p className="text-lg text-[#666666] mb-8 leading-relaxed max-w-xl">
+                  <p className="text-lg text-[#666666] mb-8 leading-relaxed max-w-xl mx-auto lg:mx-0">
                     {hero?.content || 'Keep track of your shared expenses and balances with housemates, trips, groups, friends, and family. Split bills easily and settle up with confidence.'}
                   </p>
 
                   {/* App Store Buttons */}
-                  <div className="flex flex-wrap gap-4 mb-12">
+                  <div className="flex flex-wrap gap-4 mb-12 justify-center lg:justify-start">
                     <a href="#" className="inline-block">
                       <div className="bg-black text-white px-6 py-3 rounded-lg flex items-center gap-3 hover:bg-gray-800 transition-colors">
                         <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
@@ -140,7 +141,7 @@ export default function HomePage() {
                   </div>
 
                   {/* Stats */}
-                  <div className="flex gap-6 justify-start">
+                  <div className="flex gap-6 justify-center lg:justify-start">
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -170,7 +171,7 @@ export default function HomePage() {
               </div>
 
               {/* Right Column - Image */}
-              <div className="relative flex items-center justify-start">
+              <div className="relative flex items-center justify-center lg:justify-start">
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}

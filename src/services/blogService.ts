@@ -8,10 +8,21 @@ export interface BlogPost {
   content: string;
   category?: string;
   author?: string;
+  author_bio?: string;
   image_url?: string;
   published_date?: string;
+  read_time?: string;
+  tags?: string[];
   is_published: boolean;
   order: number;
+}
+
+export interface BlogCategory {
+  $id: string;
+  name: string;
+  slug: string;
+  order: number;
+  is_active: boolean;
 }
 
 export const blogService = {
@@ -46,6 +57,23 @@ export const blogService = {
     } catch (error) {
       console.error(`Error fetching post ${slug}:`, error);
       return null;
+    }
+  },
+
+  async getCategories(): Promise<BlogCategory[]> {
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.BLOG_CATEGORIES,
+        [
+          Query.equal('is_active', true),
+          Query.orderAsc('order')
+        ]
+      );
+      return response.documents as unknown as BlogCategory[];
+    } catch (error) {
+      console.error('Error fetching blog categories:', error);
+      return [];
     }
   }
 };
