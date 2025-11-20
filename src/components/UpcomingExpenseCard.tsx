@@ -10,6 +10,7 @@ import { Users, Receipt, Edit, Trash } from 'lucide-react';
 import { formatCents } from '@/lib/split';
 import { formatDateBadge, getDateBadgeColor } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { useCurrency } from '@/hooks/useCurrency';
 
 interface UpcomingExpenseCardProps {
   expense: UpcomingExpense;
@@ -26,6 +27,8 @@ export default function UpcomingExpenseCard({
   onDelete,
   onConvert,
 }: UpcomingExpenseCardProps) {
+  const userCurrency = useCurrency();
+  
   const getSplitTypeIcon = () => {
     switch (expense.splitType) {
       case 'equal':
@@ -73,7 +76,7 @@ export default function UpcomingExpenseCard({
         <div className="mb-4">
           <p className="text-sm text-[#666666] mb-1">Total Amount</p>
           <p className="text-2xl font-bold text-[#333333]">
-            {formatCents(expense.amountCents)}
+            {formatCents(expense.amountCents, userCurrency)}
           </p>
         </div>
         
@@ -103,7 +106,7 @@ export default function UpcomingExpenseCard({
                 <span className="font-medium text-[#333333]">
                   {expense.splitType === 'percentage' 
                     ? `${amount}%` 
-                    : formatCents(amount)}
+                    : formatCents(amount, userCurrency)}
                 </span>
               </div>
             ))}

@@ -240,13 +240,13 @@ export default function HomePage() {
                   <div className="relative z-10 grid lg:grid-cols-2 gap-8 items-center">
                     {/* Text content - alternates left/right */}
                     <div className={`p-8 lg:p-12 ${index % 2 === 0 ? 'order-2 lg:order-1' : 'order-2'}`}>
-                      <h3 className="text-3xl font-bold mb-4 text-white">
+                      <h3 className="text-3xl font-bold mb-4" style={{ color: 'white' }}>
                         {feature.title}
                       </h3>
-                      <p className="mb-6 leading-relaxed text-white/90">
+                      <p className="mb-6 leading-relaxed" style={{ color: 'white' }}>
                         {feature.description}
                       </p>
-                      <button className="text-white font-semibold flex items-center gap-2 hover:gap-3 transition-all">
+                      <button className="font-semibold flex items-center gap-2 hover:gap-3 transition-all" style={{ color: 'white' }}>
                         Try it now <ArrowRight className="w-4 h-4" />
                       </button>
                     </div>

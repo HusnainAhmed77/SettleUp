@@ -193,44 +193,6 @@ export default function BlogPostPage({ params }: { params: Promise<{ slug: strin
                 </div>
               )}
 
-              {/* Share Buttons */}
-              <div className="px-8 py-6 border-t border-gray-200">
-                <p className="text-sm font-semibold text-[#333333] mb-4">Share this article:</p>
-                <div className="flex gap-3">
-                  <a 
-                    href="https://facebook.com" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 bg-[#1877F2] hover:bg-[#166FE5] text-white rounded-lg transition-colors font-medium text-sm"
-                  >
-                    <Facebook className="w-4 h-4" />
-                    Facebook
-                  </a>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-[#EA4335] hover:bg-[#D93025] text-white rounded-lg transition-colors font-medium text-sm">
-                    <Mail className="w-4 h-4" />
-                    Email
-                  </button>
-                  <a 
-                    href="https://twitter.com" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 bg-[#1DA1F2] hover:bg-[#1A91DA] text-white rounded-lg transition-colors font-medium text-sm"
-                  >
-                    <Twitter className="w-4 h-4" />
-                    Twitter
-                  </a>
-                  <a 
-                    href="https://linkedin.com" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 bg-[#0A66C2] hover:bg-[#095196] text-white rounded-lg transition-colors font-medium text-sm"
-                  >
-                    <Linkedin className="w-4 h-4" />
-                    LinkedIn
-                  </a>
-                </div>
-              </div>
-
               {/* Author Bio */}
               {post.author && post.author_bio && (
                 <div className="px-8 py-8 bg-gray-50 border-t border-gray-200">

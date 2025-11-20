@@ -42,6 +42,8 @@ const client = new Client()
         MEMBER_NAMES: 'member_names',
         USER_PROFILES: 'user_profiles',
         CONTACT_SUBMISSIONS: 'contact_submissions',
+        ADMIN_SETTLEMENTS: 'admin_settlements',
+        FRIENDS: 'friends',
     };
 
     // Legacy export for backward compatibility
@@ -50,4 +52,8 @@ const client = new Client()
         ...APP_COLLECTIONS,
     };
 
+    // Storage Buckets
+    export const STORAGE_BUCKETS = {
+        PROFILE_PICTURES: 'profile_pictures',
+    };
     

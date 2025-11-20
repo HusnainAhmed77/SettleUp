@@ -69,3 +69,16 @@ export function useUpcomingExpensesActions() {
     convertToExpense: dataStore.convertToExpense.bind(dataStore),
   };
 }
+
+export function useStoreLoading() {
+  const [isLoading, setIsLoading] = useState<boolean>(dataStore.getIsLoading());
+
+  useEffect(() => {
+    const unsubscribe = dataStore.subscribe(() => {
+      setIsLoading(dataStore.getIsLoading());
+    });
+    return unsubscribe;
+  }, []);
+
+  return isLoading;
+}

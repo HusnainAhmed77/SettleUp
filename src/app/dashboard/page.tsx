@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Plus, Users, TrendingUp, TrendingDown, ArrowRight, Wallet, Receipt, Activity } from 'lucide-react';
+import { Plus, Users, TrendingUp, TrendingDown, ArrowRight, Wallet, Receipt, Activity, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
@@ -12,16 +12,137 @@ import Avatar, { AvatarGroup } from '@/components/ui/Avatar';
 import Badge from '@/components/ui/Badge';
 import CreateGroupForm from '@/components/CreateGroupForm';
 import UpcomingExpensesSection from '@/components/UpcomingExpensesSection';
+import DemoModeBanner from '@/components/DemoModeBanner';
+import AddFriendModal from '@/components/AddFriendModal';
 import { currentUser } from '@/lib/mockData';
 import { buildLedger, computeNetBalances, formatCents, getCurrentMonthSpending } from '@/lib/split';
-import { useGroups } from '@/hooks/useStore';
+import { useGroups, useStoreLoading } from '@/hooks/useStore';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { dataStore } from '@/lib/store';
+import { getFriends } from '@/services/friendService';
+import { useEffect } from 'react';
 
 export const dynamic = 'force-dynamic';
 
 export default function DashboardPage() {
+  const { isAuthenticated, user, loading: authLoading } = useAuth();
   const groups = useGroups();
+  const storeLoading = useStoreLoading();
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showAddFriend, setShowAddFriend] = useState(false);
+  const [friends, setFriends] = useState<any[]>([]);
+  const [deleteGroupId, setDeleteGroupId] = useState<string | null>(null);
+  
+  // Use authenticated user's name, fallback to mock data for demo mode
+  const displayName = user?.name || currentUser.name;
+  
+  // Get user's preferred currency
+  const userCurrency = useMemo(() => {
+    if (user?.prefs) {
+      const prefs = user.prefs as any;
+      return prefs.currency || 'USD';
+    }
+    return 'USD';
+  }, [user]);
+  
+  // Show loading state while auth or data is loading
+  const isLoading = authLoading || (isAuthenticated && storeLoading);
+
+  const handleDeleteGroup = async (e: React.MouseEvent, groupId: string) => {
+    e.preventDefault(); // Prevent navigation to group page
+    e.stopPropagation();
+    setDeleteGroupId(groupId);
+  };
+
+  const confirmDeleteGroup = async () => {
+    if (deleteGroupId) {
+      await dataStore.deleteGroup(deleteGroupId);
+      setDeleteGroupId(null);
+    }
+  };
+
+  // Load friends
+  useEffect(() => {
+    const loadFriends = async () => {
+      if (user?.$id) {
+        try {
+          const friendsList = await getFriends(user.$id);
+          setFriends(friendsList);
+        } catch (error) {
+          console.error('Failed to load friends:', error);
+        }
+      }
+    };
+    
+    loadFriends();
+  }, [user]);
+
+  // Show loading spinner while data is being fetched
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-[#FF007F] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-[#666666] font-medium">Loading your data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show empty state for unauthenticated users
+  if (!isAuthenticated && groups.length === 0) {
+    return (
+      <div className="relative min-h-screen">
+        <DemoModeBanner />
+        
+        {/* Facets Background */}
+        <div className="absolute inset-0 z-0">
+          <Image
+            src="/images/facets.png"
+            alt="Background pattern"
+            fill
+            className="object-cover opacity-30"
+          />
+        </div>
+
+        <div className="relative z-10 container mx-auto px-4 py-8">
+          <div className="flex flex-col items-center justify-center min-h-[80vh]">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center max-w-2xl"
+            >
+              <div className="w-32 h-32 mx-auto mb-8 bg-gradient-to-br from-[#FF007F] to-[#00CFFF] rounded-full flex items-center justify-center shadow-2xl">
+                <Wallet className="w-16 h-16 text-white" />
+              </div>
+              
+              <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-[#FF007F] to-[#00CFFF] bg-clip-text text-transparent">
+                Welcome to Splitwise
+              </h1>
+              
+              <p className="text-xl text-[#666666] mb-8">
+                Track shared expenses, split bills, and settle up with friends easily.
+              </p>
+              
+              <div className="flex gap-4 justify-center">
+                <Link href="/auth?mode=signin">
+                  <Button className="bg-[#FF007F] hover:bg-[#00CFFF] text-white px-8 py-3 text-lg">
+                    Sign In
+                  </Button>
+                </Link>
+                <Link href="/auth?mode=signup">
+                  <Button variant="outline" className="border-2 border-[#FF007F] text-[#FF007F] hover:bg-[#FF007F] hover:text-white px-8 py-3 text-lg">
+                    Sign Up
+                  </Button>
+                </Link>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   // Compute overall balance across all groups
   const overallBalance = useMemo(() => {
@@ -29,7 +150,7 @@ export default function DashboardPage() {
     
     groups.forEach(group => {
       const userIds = group.members.map(m => m.id);
-      const ledger = buildLedger(group.expenses, userIds);
+      const ledger = buildLedger(group.expenses, userIds, group.settlements);
       const balances = computeNetBalances(ledger, userIds);
       const myBalance = balances.find(b => b.userId === currentUser.id);
       if (myBalance) {
@@ -44,7 +165,7 @@ export default function DashboardPage() {
   const groupBalances = useMemo(() => {
     return groups.map(group => {
       const userIds = group.members.map(m => m.id);
-      const ledger = buildLedger(group.expenses, userIds);
+      const ledger = buildLedger(group.expenses, userIds, group.settlements);
       const balances = computeNetBalances(ledger, userIds);
       const myBalance = balances.find(b => b.userId === currentUser.id);
       
@@ -110,6 +231,9 @@ export default function DashboardPage() {
 
   return (
     <div className="relative">
+      {/* Demo Mode Banner */}
+      {!isAuthenticated && <DemoModeBanner />}
+      
       {/* Facets Background Image */}
       <div className="absolute inset-0 z-0">
         <Image
@@ -133,7 +257,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-4xl font-bold mb-2 text-[#333333]">
-                Welcome back, <span className="text-[#00CFFF]">{currentUser.name}</span>!
+                Welcome back, <span className="text-[#00CFFF]">{displayName}</span>!
               </h1>
               <p className="text-[#666666] text-lg">Here's your financial overview</p>
             </div>
@@ -158,7 +282,7 @@ export default function DashboardPage() {
                       <p className="text-white/90 text-sm font-semibold tracking-wide">TOTAL BALANCE</p>
                     </div>
                     <h2 className="text-5xl font-bold mb-2">
-                      {formatCents(Math.abs(overallBalance))}
+                      {formatCents(Math.abs(overallBalance), userCurrency)}
                     </h2>
                     {overallBalance > 0 && (
                       <div className="flex items-center gap-2 text-white/90">
@@ -183,7 +307,7 @@ export default function DashboardPage() {
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-white/90 text-sm font-medium">Spent this month</span>
                         <span className="text-white font-bold text-lg">
-                          {formatCents(monthlySpending)}
+                          {formatCents(monthlySpending, userCurrency)}
                         </span>
                       </div>
                       <div className="w-full bg-white/20 rounded-full h-2">
@@ -217,7 +341,7 @@ export default function DashboardPage() {
                       <p className="text-[#666666] text-sm font-semibold tracking-wide">PAYABLES</p>
                     </div>
                     <h2 className="text-4xl font-bold text-[#FF6B35] mb-2">
-                      {formatCents(youOwe)}
+                      {formatCents(youOwe, userCurrency)}
                     </h2>
                     <p className="text-[#999999] text-sm">Amount you need to pay</p>
                     
@@ -260,7 +384,7 @@ export default function DashboardPage() {
                       <p className="text-[#666666] text-sm font-semibold tracking-wide">RECEIVABLES</p>
                     </div>
                     <h2 className="text-4xl font-bold text-[#10B981] mb-2">
-                      {formatCents(youAreOwed)}
+                      {formatCents(youAreOwed, userCurrency)}
                     </h2>
                     <p className="text-[#999999] text-sm">Amount owed to you</p>
                     
@@ -370,6 +494,57 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </motion.div>
+
+            {/* Friends Card */}
+            {isAuthenticated && (
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.6 }}
+              >
+                <Card className="bg-white shadow-lg border-2 border-dashed border-[#00CFFF]/30">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2 text-[#333333]">
+                        <Users className="w-5 h-5 text-[#00CFFF]" />
+                        Friends ({friends.length})
+                      </CardTitle>
+                      <Button
+                        size="sm"
+                        onClick={() => setShowAddFriend(true)}
+                        className="bg-[#00CFFF] hover:bg-[#FF007F] text-white gap-1"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Friend
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {friends.length === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-[#666666] mb-2">No friends yet</p>
+                        <p className="text-sm text-[#999999]">Add friends to share expenses</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {friends.map((friend, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-3 p-3 bg-[#00CFFF]/5 rounded-lg hover:bg-[#00CFFF]/10 transition-colors"
+                          >
+                            <Avatar alt={friend.name} initials={friend.name} size="sm" />
+                            <div className="flex-1">
+                              <p className="font-semibold text-[#333333]">{friend.name}</p>
+                              <p className="text-xs text-[#666666]">{friend.email}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
           </div>
         )}
 
@@ -419,7 +594,16 @@ export default function DashboardPage() {
                             <p className="text-white text-sm font-semibold">{totalGroupExpenses} expenses</p>
                           </div>
                         </div>
-                        <ArrowRight className="w-5 h-5 text-white/80 group-hover:translate-x-1 transition-transform" />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={(e) => handleDeleteGroup(e, group.id)}
+                            className="w-8 h-8 bg-red-500/20 hover:bg-red-500/30 backdrop-blur-sm rounded-lg flex items-center justify-center transition-colors"
+                            title="Delete group"
+                          >
+                            <Trash2 className="w-4 h-4 text-white" />
+                          </button>
+                          <ArrowRight className="w-5 h-5 text-white/80 group-hover:translate-x-1 transition-transform" />
+                        </div>
                       </div>
                     </div>
 
@@ -465,14 +649,14 @@ export default function DashboardPage() {
                           )}
                         </div>
                         <p className="text-3xl font-bold text-[#333333] mb-3">
-                          {formatCents(Math.abs(netCents))}
+                          {formatCents(Math.abs(netCents), userCurrency)}
                         </p>
                         
                         {/* Progress Bar */}
                         <div className="space-y-1">
                           <div className="flex justify-between text-xs text-[#666666]">
                             <span>Group Total</span>
-                            <span>{formatCents(groupTotal)}</span>
+                            <span>{formatCents(groupTotal, userCurrency)}</span>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-2">
                             <motion.div 
@@ -534,6 +718,53 @@ export default function DashboardPage() {
               // Data will auto-refresh via useGroups hook
             }}
           />
+        )}
+
+        {/* Add Friend Modal */}
+        {showAddFriend && (
+          <AddFriendModal
+            onClose={() => setShowAddFriend(false)}
+            onSuccess={async () => {
+              // Reload friends list
+              if (user?.$id) {
+                const friendsList = await getFriends(user.$id);
+                setFriends(friendsList);
+              }
+            }}
+          />
+        )}
+
+        {/* Delete Group Confirmation Modal */}
+        {deleteGroupId && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+            >
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Delete Group?</h3>
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to delete this group? This action cannot be undone and all expenses will be permanently deleted.
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setDeleteGroupId(null)}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={confirmDeleteGroup}
+                  className="flex-1 bg-red-500 hover:bg-red-600"
+                >
+                  Delete
+                </Button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </div>
     </div>

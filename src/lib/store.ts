@@ -1,16 +1,18 @@
-// Simple in-memory store for managing groups and expenses
-// In production, this would be replaced with API calls to backend
+// Store for managing groups and expenses with Appwrite backend
 
-import { Group, User, mockUsers, mockGroups as initialGroups } from './mockData';
+import { Group, User, mockUsers, mockGroups as initialGroups, currentUser } from './mockData';
 import { Expense, computeShares, SplitType, UpcomingExpense } from './split';
+import * as dataService from '@/services/dataService';
 
-const STORAGE_KEY = 'splitwise-upcoming-expenses';
+const STORAGE_KEY_UPCOMING = 'splitwise-upcoming-expenses';
+const STORAGE_KEY_GROUPS = 'splitwise-groups';
+const STORAGE_KEY_USERS = 'splitwise-users';
 
 // Utility functions for localStorage
 function saveUpcomingExpenses(expenses: UpcomingExpense[]) {
   if (typeof window !== 'undefined') {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
+      localStorage.setItem(STORAGE_KEY_UPCOMING, JSON.stringify(expenses));
     } catch (error) {
       console.error('Failed to save upcoming expenses to localStorage:', error);
     }
@@ -20,7 +22,7 @@ function saveUpcomingExpenses(expenses: UpcomingExpense[]) {
 function loadUpcomingExpenses(): UpcomingExpense[] {
   if (typeof window !== 'undefined') {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(STORAGE_KEY_UPCOMING);
       if (stored) {
         const parsed = JSON.parse(stored);
         // Convert date strings back to Date objects
@@ -38,11 +40,135 @@ function loadUpcomingExpenses(): UpcomingExpense[] {
   return [];
 }
 
+function saveGroups(groups: Group[]) {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(groups));
+    } catch (error) {
+      console.error('Failed to save groups to localStorage:', error);
+    }
+  }
+}
+
+function loadGroups(): Group[] {
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_GROUPS);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Convert date strings back to Date objects
+        return parsed.map((group: any) => ({
+          ...group,
+          createdAt: new Date(group.createdAt),
+          expenses: group.expenses.map((exp: any) => ({
+            ...exp,
+            date: new Date(exp.date),
+          })),
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to load groups from localStorage:', error);
+    }
+  }
+  return [...initialGroups]; // Return initial groups if nothing in localStorage
+}
+
+function saveUsers(users: User[]) {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+    } catch (error) {
+      console.error('Failed to save users to localStorage:', error);
+    }
+  }
+}
+
+function loadUsers(): User[] {
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_USERS);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load users from localStorage:', error);
+    }
+  }
+  return [...mockUsers]; // Return initial users if nothing in localStorage
+}
+
 class DataStore {
-  private groups: Group[] = [...initialGroups];
+  private groups: Group[] = [];
   private users: User[] = [...mockUsers];
-  private upcomingExpenses: UpcomingExpense[] = loadUpcomingExpenses();
+  private upcomingExpenses: UpcomingExpense[] = [];
   private listeners: (() => void)[] = [];
+  private idCounter: number = 0;
+  private userId: string | null = null;
+  private isInitialized: boolean = false;
+  private isLoading: boolean = false;
+
+  // Set the current user ID (call this after login)
+  setUserId(userId: string) {
+    this.userId = userId;
+  }
+
+  // Check if data is currently loading
+  getIsLoading(): boolean {
+    return this.isLoading;
+  }
+
+  // Clear all data (call on logout)
+  clear() {
+    this.groups = [];
+    this.upcomingExpenses = [];
+    this.userId = null;
+    this.isInitialized = false;
+    this.isLoading = false;
+    
+    // Clear localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEY_GROUPS);
+      localStorage.removeItem(STORAGE_KEY_UPCOMING);
+    }
+    
+    this.notify();
+  }
+
+  // Initialize data from Appwrite
+  async initialize(userId: string) {
+    if (this.isInitialized && this.userId === userId) return;
+    
+    this.userId = userId;
+    this.isLoading = true;
+    this.notify();
+
+    try {
+      // Load groups and expenses from Appwrite
+      const groups = await dataService.getUserGroups(userId);
+      this.groups = groups;
+      
+      // Load upcoming expenses
+      const upcoming = await dataService.getUserUpcomingExpenses(userId);
+      this.upcomingExpenses = upcoming;
+      
+      this.isInitialized = true;
+      this.isLoading = false;
+      this.notify();
+    } catch (error) {
+      console.error('Failed to initialize data from Appwrite:', error);
+      // Start with empty data on error
+      this.groups = [];
+      this.upcomingExpenses = [];
+      this.isInitialized = true;
+      this.isLoading = false;
+      this.notify();
+    }
+  }
+
+  // Generate unique ID
+  private generateId(): string {
+    return `${Date.now()}-${this.idCounter++}`;
+  }
 
   subscribe(listener: () => void) {
     this.listeners.push(listener);
@@ -52,7 +178,9 @@ class DataStore {
   }
 
   private notify() {
-    // Save upcoming expenses to localStorage
+    // Save to localStorage as backup
+    saveGroups(this.groups);
+    saveUsers(this.users);
     saveUpcomingExpenses(this.upcomingExpenses);
     // Notify all listeners immediately
     this.listeners.forEach(listener => listener());
@@ -68,17 +196,32 @@ class DataStore {
     if (!group) return undefined;
     
     // Deep clone to ensure all nested arrays get new references
+    // This ensures React detects changes when expenses are added
     return {
       ...group,
       members: [...group.members],
-      expenses: [...group.expenses],
+      expenses: group.expenses.map(e => ({ ...e })),
     };
   }
 
-  createGroup(name: string, description: string, memberIds: string[]): Group {
+  async createGroup(name: string, description: string, memberIds: string[]): Promise<Group> {
     const members = this.users.filter(u => memberIds.includes(u.id));
+    
+    if (this.userId) {
+      // Save to Appwrite
+      try {
+        const newGroup = await dataService.createGroup(name, description, members, this.userId);
+        this.groups.push(newGroup);
+        this.notify();
+        return newGroup;
+      } catch (error) {
+        console.error('Failed to create group in Appwrite:', error);
+      }
+    }
+    
+    // Fallback to local storage
     const newGroup: Group = {
-      id: Date.now().toString(),
+      id: this.generateId(),
       name,
       description,
       members,
@@ -90,7 +233,15 @@ class DataStore {
     return newGroup;
   }
 
-  deleteGroup(id: string) {
+  async deleteGroup(id: string) {
+    if (this.userId) {
+      try {
+        await dataService.deleteGroup(id);
+      } catch (error) {
+        console.error('Failed to delete group from Appwrite:', error);
+      }
+    }
+    
     this.groups = this.groups.filter(g => g.id !== id);
     this.notify();
   }
@@ -106,7 +257,7 @@ class DataStore {
 
   createUser(name: string, email: string): User {
     const newUser: User = {
-      id: Date.now().toString(),
+      id: this.generateId(),
       name,
       email,
     };
@@ -116,7 +267,7 @@ class DataStore {
   }
 
   // Expenses
-  addExpense(
+  async addExpense(
     groupId: string,
     title: string,
     amountCents: number,
@@ -125,7 +276,7 @@ class DataStore {
     splitType: SplitType,
     customSplits?: { [userId: string]: number },
     payers?: { userId: string; amountCents: number }[]
-  ): Expense {
+  ): Promise<Expense> {
     const group = this.groups.find(g => g.id === groupId);
     if (!group) throw new Error('Group not found');
 
@@ -133,7 +284,7 @@ class DataStore {
     const splits = computeShares(amountCents, participantIds, splitType, customSplits);
 
     const newExpense: Expense = {
-      id: Date.now().toString(),
+      id: this.generateId(),
       title,
       amountCents,
       currency: 'USD',
@@ -145,14 +296,33 @@ class DataStore {
       date: new Date(),
     };
 
+    if (this.userId) {
+      try {
+        const savedExpense = await dataService.createExpense(groupId, newExpense, this.userId);
+        group.expenses.push(savedExpense);
+        this.notify();
+        return savedExpense;
+      } catch (error) {
+        console.error('Failed to create expense in Appwrite:', error);
+      }
+    }
+
     group.expenses.push(newExpense);
     this.notify();
     return newExpense;
   }
 
-  deleteExpense(groupId: string, expenseId: string) {
+  async deleteExpense(groupId: string, expenseId: string) {
     const group = this.groups.find(g => g.id === groupId);
     if (!group) return;
+
+    if (this.userId) {
+      try {
+        await dataService.deleteExpense(expenseId);
+      } catch (error) {
+        console.error('Failed to delete expense from Appwrite:', error);
+      }
+    }
 
     group.expenses = group.expenses.filter(e => e.id !== expenseId);
     this.notify();
@@ -177,28 +347,48 @@ class DataStore {
   }
 
   // Add member to group
-  addMemberToGroup(groupId: string, userId: string) {
+  async addMemberToGroup(groupId: string, userId: string) {
     const group = this.groups.find(g => g.id === groupId);
     const user = this.getUser(userId);
     if (!group || !user) return;
 
     if (!group.members.find(m => m.id === userId)) {
       group.members.push(user);
+      
+      // Update in Appwrite
+      if (this.userId) {
+        try {
+          await dataService.updateGroup(groupId, { members: group.members }, this.userId);
+        } catch (error) {
+          console.error('Failed to update group in Appwrite:', error);
+        }
+      }
+      
       this.notify();
     }
   }
 
   // Remove member from group
-  removeMemberFromGroup(groupId: string, userId: string) {
+  async removeMemberFromGroup(groupId: string, userId: string) {
     const group = this.groups.find(g => g.id === groupId);
     if (!group) return;
 
     group.members = group.members.filter(m => m.id !== userId);
+    
+    // Update in Appwrite
+    if (this.userId) {
+      try {
+        await dataService.updateGroup(groupId, { members: group.members }, this.userId);
+      } catch (error) {
+        console.error('Failed to update group in Appwrite:', error);
+      }
+    }
+    
     this.notify();
   }
 
   // Record a payment (settle up)
-  recordPayment(
+  async recordPayment(
     groupId: string,
     fromUserId: string,
     toUserId: string,
@@ -207,28 +397,29 @@ class DataStore {
     const group = this.groups.find(g => g.id === groupId);
     if (!group) throw new Error('Group not found');
 
-    // Create a payment expense that zeros out the debt
-    // Logic: If A owes B $50, we record an expense where:
-    // - A is the payer (paid $50)
-    // - B is the participant (owes $50)
-    // This creates: B owes A $50, which cancels the existing A owes B $50
-    const paymentExpense: Expense = {
-      id: Date.now().toString(),
-      title: `💸 Payment: ${this.getUser(fromUserId)?.name} → ${this.getUser(toUserId)?.name}`,
-      amountCents: amountCents,
-      currency: 'USD',
-      payerId: fromUserId, // The person making the payment
-      participants: [toUserId], // The person receiving is the participant
-      splitType: 'exact',
-      splits: [
-        { userId: toUserId, amountCents: amountCents }, // Receiver's "share" is the full amount
-      ],
+    // Initialize settlements array if it doesn't exist
+    if (!group.settlements) {
+      group.settlements = [];
+    }
+
+    // Record the settlement payment
+    const settlement = {
+      id: this.generateId(),
+      fromUserId,
+      toUserId,
+      amountCents,
       date: new Date(),
+      note: `${this.getUser(fromUserId)?.name} paid ${this.getUser(toUserId)?.name}`
     };
 
-    group.expenses.push(paymentExpense);
+    group.settlements.push(settlement);
+
+    // TODO: Save settlement to Appwrite (create settlements collection)
+    // For now, just save to local storage
     this.notify();
   }
+
+
 
   // Upcoming Expenses
   getUpcomingExpenses(): UpcomingExpense[] {
@@ -251,7 +442,7 @@ class DataStore {
     notes?: string
   ): UpcomingExpense {
     const newUpcoming: UpcomingExpense = {
-      id: Date.now().toString(),
+      id: this.generateId(),
       title,
       amountCents,
       currency: 'USD',
@@ -286,17 +477,25 @@ class DataStore {
     this.notify();
   }
 
-  deleteUpcomingExpense(id: string) {
+  async deleteUpcomingExpense(id: string) {
+    if (this.userId) {
+      try {
+        await dataService.deleteUpcomingExpense(id);
+      } catch (error) {
+        console.error('Failed to delete upcoming expense from Appwrite:', error);
+      }
+    }
+    
     this.upcomingExpenses = this.upcomingExpenses.filter(e => e.id !== id);
     this.notify();
   }
 
-  convertToExpense(
+  async convertToExpense(
     upcomingId: string,
     payerId: string,
     actualDate: Date,
     removeAfter: boolean
-  ): Expense | null {
+  ): Promise<Expense | null> {
     const upcoming = this.upcomingExpenses.find(e => e.id === upcomingId);
     if (!upcoming) return null;
 
@@ -307,7 +506,7 @@ class DataStore {
     }));
 
     // Create actual expense
-    const expense = this.addExpense(
+    const expense = await this.addExpense(
       upcoming.groupId,
       upcoming.title,
       upcoming.amountCents,
@@ -319,7 +518,7 @@ class DataStore {
 
     // Optionally remove upcoming expense
     if (removeAfter) {
-      this.deleteUpcomingExpense(upcomingId);
+      await this.deleteUpcomingExpense(upcomingId);
     }
 
     return expense;

@@ -6,13 +6,17 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import AddExpenseForm from '@/components/AddExpenseForm';
+import SettleUpModal from '@/components/SettleUpModal';
+import AddFriendModal from '@/components/AddFriendModal';
+import AdminBadge from '@/components/AdminBadge';
+import AdminSettlementButton from '@/components/AdminSettlementButton';
 import { useGroup } from '@/hooks/useStore';
 import { ArrowRight, Plus, Users, Calculator, ArrowLeft, TrendingUp, TrendingDown, Receipt } from 'lucide-react';
 import Card, { CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Avatar from '@/components/ui/Avatar';
 import Badge from '@/components/ui/Badge';
-import { currentUser } from '@/lib/mockData';
+import { currentUser as mockCurrentUser } from '@/lib/mockData';
 import {
   buildLedger,
   computeNetBalances,
@@ -21,6 +25,8 @@ import {
   getBalanceBetween,
 } from '@/lib/split';
 import { dataStore } from '@/lib/store';
+import { useCurrency } from '@/hooks/useCurrency';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,8 +34,31 @@ export default function GroupDetailPage() {
   const params = useParams();
   const groupId = params?.id as string;
   const [showAddExpense, setShowAddExpense] = useState(false);
+  const [settleUpData, setSettleUpData] = useState<{
+    from: string;
+    to: string;
+    fromName: string;
+    toName: string;
+    amountCents: number;
+  } | null>(null);
+  const [showAddFriend, setShowAddFriend] = useState(false);
   
   const group = useGroup(groupId);
+  const userCurrency = useCurrency();
+  const { user } = useAuth();
+  
+  // Determine admin - the user who created the group (userId field)
+  const adminUserId = group?.userId || '';
+  const isCurrentUserAdmin = user?.$id === adminUserId;
+  
+  // Debug logging
+  console.log('[Admin Debug]', {
+    groupUserId: group?.userId,
+    currentUserId: user?.$id,
+    adminUserId,
+    isCurrentUserAdmin,
+    groupName: group?.name
+  });
   
   if (!group) {
     return (
@@ -46,12 +75,28 @@ export default function GroupDetailPage() {
     );
   }
 
-  const userIds = group.members.map(m => m.id);
-  const ledger = useMemo(() => buildLedger(group.expenses, userIds), [group.expenses, userIds]);
+  // Use authenticated user ID or fall back to mock user
+  const currentUserId = user?.$id || mockCurrentUser.id;
+  
+  console.log('[Group Stats Debug]', {
+    currentUserId,
+    groupMembers: group.members,
+    groupExpenses: group.expenses,
+    memberIds: group.members.map(m => m.id),
+  });
+  
+  const userIds = useMemo(() => group.members.map(m => m.id), [group.members]);
+  const ledger = useMemo(() => buildLedger(group.expenses, userIds, group.settlements), [group.expenses, userIds, group.settlements]);
   const balances = useMemo(() => computeNetBalances(ledger, userIds), [ledger, userIds]);
   const settlements = useMemo(() => simplifyDebts(balances), [balances]);
   
-  const myBalance = balances.find(b => b.userId === currentUser.id);
+  console.log('[Group Stats Debug]', {
+    ledger,
+    balances,
+    settlements,
+  });
+  
+  const myBalance = balances.find(b => b.userId === currentUserId);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
@@ -85,14 +130,16 @@ export default function GroupDetailPage() {
               <h1 className="text-4xl font-bold mb-2 text-[#333333]">{group.name}</h1>
               <p className="text-[#666666] text-lg">{group.description}</p>
             </div>
-            <Button
-              variant="primary"
-              className="gap-2 bg-[#FF007F] hover:bg-[#00CFFF] text-white shadow-lg hover:shadow-xl transition-all duration-300"
-              onClick={() => setShowAddExpense(true)}
-            >
-              <Plus className="w-5 h-5" />
-              Add Expense
-            </Button>
+            <div className="flex gap-3">
+              <Button
+                variant="primary"
+                className="gap-2 bg-[#FF007F] hover:bg-[#00CFFF] text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                onClick={() => setShowAddExpense(true)}
+              >
+                <Plus className="w-5 h-5" />
+                Add Expense
+              </Button>
+            </div>
           </div>
         </motion.div>
 
@@ -105,10 +152,10 @@ export default function GroupDetailPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
             >
-              <Card className={`border-2 ${
-                myBalance && myBalance.netCents > 0 ? 'border-[#10B981] bg-gradient-to-br from-[#10B981]/5 to-white' :
-                myBalance && myBalance.netCents < 0 ? 'border-[#FF6B35] bg-gradient-to-br from-[#FF6B35]/5 to-white' :
-                'border-[#FF007F] bg-gradient-to-br from-[#FF007F]/5 to-white'
+              <Card className={`border-2 border-gray-200 ${
+                myBalance && myBalance.netCents > 0 ? 'bg-gradient-to-br from-[#10B981]/5 to-white' :
+                myBalance && myBalance.netCents < 0 ? 'bg-gradient-to-br from-[#FF6B35]/5 to-white' :
+                'bg-gradient-to-br from-[#FF007F]/5 to-white'
               } shadow-lg`}>
                 <CardHeader>
                   <CardTitle className="text-[#333333] flex items-center gap-2">
@@ -120,7 +167,7 @@ export default function GroupDetailPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-5xl font-bold text-[#333333] mb-2">
-                        {formatCents(Math.abs(myBalance?.netCents || 0))}
+                        {formatCents(Math.abs(myBalance?.netCents || 0), userCurrency)}
                       </p>
                       <div className="flex items-center gap-2">
                         {myBalance && myBalance.netCents > 0 && (
@@ -157,7 +204,7 @@ export default function GroupDetailPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
               >
-                <Card className="border-2 border-[#FF007F] shadow-lg">
+                <Card className="border-2 border-gray-200 shadow-lg">
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle className="flex items-center gap-2 text-[#333333]">
@@ -173,17 +220,16 @@ export default function GroupDetailPage() {
                       {settlements.map((settlement, index) => {
                         const fromUser = group.members.find(m => m.id === settlement.from);
                         const toUser = group.members.find(m => m.id === settlement.to);
-                        const isMySettlement = settlement.from === currentUser.id || settlement.to === currentUser.id;
+                        const isMySettlement = settlement.from === currentUserId || settlement.to === currentUserId;
                         
                         const handleSettleUp = () => {
-                          if (confirm(`Record payment of ${formatCents(settlement.amountCents)} from ${fromUser?.name} to ${toUser?.name}?`)) {
-                            dataStore.recordPayment(
-                              groupId,
-                              settlement.from,
-                              settlement.to,
-                              settlement.amountCents
-                            );
-                          }
+                          setSettleUpData({
+                            from: settlement.from,
+                            to: settlement.to,
+                            fromName: fromUser?.name || '',
+                            toName: toUser?.name || '',
+                            amountCents: settlement.amountCents
+                          });
                         };
                         
                         return (
@@ -199,26 +245,50 @@ export default function GroupDetailPage() {
                             <div className="flex-1">
                               <p className="font-semibold text-[#333333] text-lg mb-1">
                                 {fromUser?.name}
-                                {settlement.from === currentUser.id && <span className="text-[#FF007F]"> (you)</span>}
+                                {settlement.from === currentUserId && <span className="text-[#FF007F]"> (you)</span>}
                                 <span className="text-[#666666] font-normal"> pays </span>
                                 {toUser?.name}
-                                {settlement.to === currentUser.id && <span className="text-[#FF007F]"> (you)</span>}
+                                {settlement.to === currentUserId && <span className="text-[#FF007F]"> (you)</span>}
                               </p>
                               <p className="text-3xl font-bold text-[#FF007F]">
-                                {formatCents(settlement.amountCents)}
+                                {formatCents(settlement.amountCents, userCurrency)}
                               </p>
                             </div>
                             <ArrowRight className="w-8 h-8 text-[#FF007F]" />
                             <Avatar alt={toUser?.name} initials={toUser?.name} size="lg" />
-                            {isMySettlement && (
-                              <Button 
-                                size="sm" 
-                                className="bg-[#FF007F] hover:bg-[#00CFFF] text-white"
-                                onClick={handleSettleUp}
-                              >
-                                Settle Up
-                              </Button>
-                            )}
+                            <div className="flex flex-col gap-2">
+                              {isMySettlement && (
+                                <Button 
+                                  size="sm" 
+                                  className="bg-[#FF007F] hover:bg-[#00CFFF] text-white"
+                                  onClick={handleSettleUp}
+                                >
+                                  Settle Up
+                                </Button>
+                              )}
+                              {isCurrentUserAdmin && !isMySettlement && (
+                                <AdminSettlementButton
+                                  groupId={groupId}
+                                  adminUserId={adminUserId}
+                                  fromUser={{
+                                    userId: settlement.from,
+                                    name: fromUser?.name || '',
+                                    profilePicture: fromUser?.avatar
+                                  }}
+                                  toUser={{
+                                    userId: settlement.to,
+                                    name: toUser?.name || '',
+                                    profilePicture: toUser?.avatar
+                                  }}
+                                  amountCents={settlement.amountCents}
+                                  currency={userCurrency}
+                                  onSettle={async () => {
+                                    // Admin settling debt between two users
+                                    await dataStore.recordPayment(groupId, settlement.from, settlement.to, settlement.amountCents);
+                                  }}
+                                />
+                              )}
+                            </div>
                           </div>
                         );
                       })}
@@ -261,7 +331,7 @@ export default function GroupDetailPage() {
                     <div className="space-y-3">
                       {group.expenses.slice(0, 5).map((expense, index) => {
                         const payer = group.members.find(m => m.id === expense.payerId);
-                        const myShare = expense.splits.find(s => s.userId === currentUser.id);
+                        const myShare = expense.splits.find(s => s.userId === currentUserId);
                         
                         return (
                           <motion.div 
@@ -271,22 +341,22 @@ export default function GroupDetailPage() {
                             transition={{ delay: 0.05 * index }}
                             className="flex items-center gap-4 p-4 rounded-xl hover:bg-[#e8f5f3] border-2 border-transparent hover:border-[#FF007F] transition-all duration-300"
                           >
-                            <div className="w-12 h-12 rounded-full bg-[#00CFFF] flex items-center justify-center text-2xl shadow-md">
+                            <div className="w-12 h-12 rounded-full flex items-center justify-center text-2xl shadow-md bg-[#00CFFF]">
                               💳
                             </div>
                             <div className="flex-1">
                               <p className="font-semibold text-[#333333] text-lg">{expense.title}</p>
                               <p className="text-sm text-[#666666]">
                                 {payer?.name}
-                                {expense.payerId === currentUser.id && <span className="text-[#FF007F]"> (you)</span>}
-                                {' '}paid {formatCents(expense.amountCents)}
+                                {expense.payerId === currentUserId && <span className="text-[#FF007F]"> (you)</span>}
+                                {' '}paid {formatCents(expense.amountCents, userCurrency)}
                               </p>
                             </div>
                             {myShare && (
-                              <div className="text-right bg-white px-4 py-2 rounded-lg border-2 border-[#FF007F]">
+                              <div className="text-right bg-white px-4 py-2 rounded-lg border-2 border-gray-200 shadow">
                                 <p className="text-xs text-[#666666] font-medium">YOUR SHARE</p>
                                 <p className="font-bold text-[#FF007F] text-lg">
-                                  {formatCents(myShare.amountCents)}
+                                  {formatCents(myShare.amountCents, userCurrency)}
                                 </p>
                               </div>
                             )}
@@ -308,34 +378,47 @@ export default function GroupDetailPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
             >
-              <Card className="border-2 border-[#FF007F] shadow-lg">
+              <Card className="border-2 border-gray-200 shadow-lg">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-[#333333]">
-                    <Users className="w-6 h-6 text-[#FF007F]" />
-                    Group Members ({group.members.length})
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-[#333333]">
+                      <Users className="w-6 h-6 text-[#FF007F]" />
+                      Group Members ({group.members.length})
+                    </CardTitle>
+                    <Button 
+                      size="sm" 
+                      className="bg-[#FF007F] hover:bg-[#00CFFF] text-white gap-1"
+                      onClick={() => setShowAddFriend(true)}
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Friend
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     {group.members.map((member, index) => {
                       const balance = balances.find(b => b.userId === member.id);
                       const netCents = balance?.netCents || 0;
-                      const isCurrentUser = member.id === currentUser.id;
                       
-                      // Get detailed breakdown
+                      // Get detailed breakdown - show NET balance between each pair
                       const owesTo: { name: string; amount: number }[] = [];
                       const owedBy: { name: string; amount: number }[] = [];
                       
                       group.members.forEach(otherMember => {
                         if (otherMember.id !== member.id) {
-                          const amount = ledger.get(member.id)?.get(otherMember.id) || 0;
-                          if (amount > 0) {
-                            owesTo.push({ name: otherMember.name, amount });
-                          }
+                          const memberOwesOther = ledger.get(member.id)?.get(otherMember.id) || 0;
+                          const otherOwesMember = ledger.get(otherMember.id)?.get(member.id) || 0;
                           
-                          const owedAmount = ledger.get(otherMember.id)?.get(member.id) || 0;
-                          if (owedAmount > 0) {
-                            owedBy.push({ name: otherMember.name, amount: owedAmount });
+                          // Calculate NET balance
+                          const netBalance = otherOwesMember - memberOwesOther;
+                          
+                          if (netBalance > 0) {
+                            // Other person owes this member (net)
+                            owedBy.push({ name: otherMember.name, amount: netBalance });
+                          } else if (netBalance < 0) {
+                            // This member owes other person (net)
+                            owesTo.push({ name: otherMember.name, amount: Math.abs(netBalance) });
                           }
                         }
                       });
@@ -346,24 +429,20 @@ export default function GroupDetailPage() {
                           initial={{ opacity: 0, x: 20 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: 0.05 * index }}
-                          className={`border-2 rounded-xl p-4 transition-all duration-300 ${
-                            isCurrentUser 
-                              ? 'border-[#FF007F] bg-[#FF007F]/5 shadow-md' 
-                              : 'border-gray-200 bg-white hover:border-gray-300'
-                          }`}
+                          className="border-2 border-gray-200 bg-white rounded-xl p-4 transition-all duration-300 hover:shadow-md"
                         >
                           <div className="flex items-center gap-3 mb-3">
                             <Avatar alt={member.name} initials={member.name} size="lg" />
                             <div className="flex-1">
-                              <p className="font-semibold text-[#333333] text-lg">
-                                {member.name}
-                                {isCurrentUser && (
-                                  <span className="text-[#FF007F] text-sm ml-2 font-bold">(YOU)</span>
-                                )}
-                              </p>
+                              <div className="flex items-center gap-2">
+                                <p className="font-semibold text-[#333333] text-lg">
+                                  {member.name}
+                                </p>
+                                <AdminBadge isAdmin={member.id === adminUserId} size="small" />
+                              </div>
                               <p className="text-sm font-medium">
-                                {netCents > 0 && <span className="text-[#10B981]">gets back {formatCents(netCents)}</span>}
-                                {netCents < 0 && <span className="text-[#FF6B35]">owes {formatCents(Math.abs(netCents))}</span>}
+                                {netCents > 0 && <span className="text-[#10B981]">gets back {formatCents(netCents, userCurrency)}</span>}
+                                {netCents < 0 && <span className="text-[#FF6B35]">owes {formatCents(Math.abs(netCents), userCurrency)}</span>}
                                 {netCents === 0 && <span className="text-[#FF007F]">settled up</span>}
                               </p>
                             </div>
@@ -378,13 +457,13 @@ export default function GroupDetailPage() {
                               {owesTo.map((debt, idx) => (
                                 <div key={`owes-${idx}`} className="flex items-center justify-between text-[#FF6B35] bg-[#FF6B35]/5 p-2 rounded-lg">
                                   <span className="font-medium">→ owes {debt.name}</span>
-                                  <span className="font-bold">{formatCents(debt.amount)}</span>
+                                  <span className="font-bold">{formatCents(debt.amount, userCurrency)}</span>
                                 </div>
                               ))}
                               {owedBy.map((credit, idx) => (
                                 <div key={`owed-${idx}`} className="flex items-center justify-between text-[#10B981] bg-[#10B981]/5 p-2 rounded-lg">
                                   <span className="font-medium">← {credit.name} owes them</span>
-                                  <span className="font-bold">{formatCents(credit.amount)}</span>
+                                  <span className="font-bold">{formatCents(credit.amount, userCurrency)}</span>
                                 </div>
                               ))}
                             </div>
@@ -411,9 +490,9 @@ export default function GroupDetailPage() {
                 <CardContent>
                   <div className="space-y-3">
                     {group.members
-                      .filter(m => m.id !== currentUser.id)
+                      .filter(m => m.id !== currentUserId)
                       .map((member, index) => {
-                        const balance = getBalanceBetween(ledger, currentUser.id, member.id);
+                        const balance = getBalanceBetween(ledger, currentUserId, member.id);
                         
                         return (
                           <motion.div 
@@ -421,12 +500,12 @@ export default function GroupDetailPage() {
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: 0.05 * index }}
-                            className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-300 ${
+                            className={`flex items-center justify-between p-4 rounded-xl border-2 border-gray-200 shadow transition-all duration-300 ${
                               balance === 0 
-                                ? 'bg-[#FF007F]/5 border-[#FF007F]' 
+                                ? 'bg-[#FF007F]/5' 
                                 : balance > 0 
-                                  ? 'bg-[#10B981]/5 border-[#10B981]' 
-                                  : 'bg-[#FF6B35]/5 border-[#FF6B35]'
+                                  ? 'bg-[#10B981]/5' 
+                                  : 'bg-[#FF6B35]/5'
                             }`}
                           >
                             <div className="flex items-center gap-3">
@@ -439,7 +518,7 @@ export default function GroupDetailPage() {
                               ) : (
                                 <>
                                   <p className={`font-bold text-xl ${balance > 0 ? 'text-[#10B981]' : 'text-[#FF6B35]'}`}>
-                                    {formatCents(Math.abs(balance))}
+                                    {formatCents(Math.abs(balance), userCurrency)}
                                   </p>
                                   <p className="text-xs font-medium text-[#666666]">
                                     {balance > 0 ? 'owes you' : 'you owe'}
@@ -465,6 +544,42 @@ export default function GroupDetailPage() {
             onClose={() => setShowAddExpense(false)}
             onSuccess={() => {
               // Data will auto-refresh via useGroup hook
+            }}
+          />
+        )}
+
+        {/* Settle Up Modal */}
+        {settleUpData && (
+          <SettleUpModal
+            fromName={settleUpData.fromName}
+            toName={settleUpData.toName}
+            totalAmountCents={settleUpData.amountCents}
+            onConfirm={async (amountCents) => {
+              await dataStore.recordPayment(
+                groupId,
+                settleUpData.from,
+                settleUpData.to,
+                amountCents
+              );
+            }}
+            onClose={() => setSettleUpData(null)}
+          />
+        )}
+
+        {/* Add Friend Modal */}
+        {showAddFriend && (
+          <AddFriendModal
+            onClose={() => setShowAddFriend(false)}
+            onAdd={async (friendName) => {
+              // Generate email from name
+              const email = `${friendName.toLowerCase().replace(/\s+/g, '.')}@example.com`;
+              
+              // Create or find the user
+              const existingUser = dataStore.getUsers().find(u => u.name === friendName);
+              const userId = existingUser?.id || dataStore.createUser(friendName, email).id;
+              
+              // Add to group
+              await dataStore.addMemberToGroup(groupId, userId);
             }}
           />
         )}

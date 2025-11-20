@@ -10,6 +10,7 @@ import { currentUser } from '@/lib/mockData';
 import { formatCents } from '@/lib/split';
 import Card, { CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import { useCurrency } from '@/hooks/useCurrency';
 import Avatar from '@/components/ui/Avatar';
 import Badge from '@/components/ui/Badge';
 
@@ -18,6 +19,7 @@ export const dynamic = 'force-dynamic';
 export default function GroupExpensesPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = React.use(params);
   const group = useGroup(id);
+  const userCurrency = useCurrency();
 
   if (!group) {
     return (
@@ -93,7 +95,7 @@ export default function GroupExpensesPage({ params }: { params: Promise<{ id: st
                   <div>
                     <p className="text-[#666666] text-sm font-medium mb-2">TOTAL EXPENSES</p>
                     <h2 className="text-3xl font-bold text-[#333333]">
-                      {formatCents(totalExpenses)}
+                      {formatCents(totalExpenses, userCurrency)}
                     </h2>
                     <p className="text-[#999999] text-sm mt-1">{group.expenses.length} transactions</p>
                   </div>
@@ -116,7 +118,7 @@ export default function GroupExpensesPage({ params }: { params: Promise<{ id: st
                   <div>
                     <p className="text-[#666666] text-sm font-medium mb-2">YOU PAID</p>
                     <h2 className="text-3xl font-bold text-[#10B981]">
-                      {formatCents(yourExpenses)}
+                      {formatCents(yourExpenses, userCurrency)}
                     </h2>
                     <p className="text-[#999999] text-sm mt-1">
                       {group.expenses.filter(exp => exp.payerId === currentUser.id).length} expenses
@@ -229,13 +231,13 @@ export default function GroupExpensesPage({ params }: { params: Promise<{ id: st
                                   </div>
                                   <div className="flex items-center gap-1 text-[#666666] text-sm">
                                     <Calendar className="w-3 h-3" />
-                                    <span>{new Date(expense.createdAt).toLocaleDateString()}</span>
+                                    <span>{new Date(expense.date).toLocaleDateString()}</span>
                                   </div>
                                 </div>
                               </div>
                               <div className="text-right">
                                 <p className="text-2xl font-bold text-[#333333]">
-                                  {formatCents(expense.amountCents)}
+                                  {formatCents(expense.amountCents, userCurrency)}
                                 </p>
                                 {isPaidByYou && (
                                   <Badge className="bg-[#10B981] text-white mt-1">You paid</Badge>
@@ -248,7 +250,7 @@ export default function GroupExpensesPage({ params }: { params: Promise<{ id: st
                               <div className="mt-3 pt-3 border-t-2 border-gray-200 flex items-center justify-between">
                                 <span className="text-sm font-medium text-[#666666]">YOUR SHARE:</span>
                                 <span className="text-lg font-bold text-[#FF007F]">
-                                  {formatCents(myShare.amountCents)}
+                                  {formatCents(myShare.amountCents, userCurrency)}
                                 </span>
                               </div>
                             )}

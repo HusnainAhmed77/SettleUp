@@ -9,6 +9,8 @@ import Avatar from './ui/Avatar';
 import { User } from '@/lib/mockData';
 import { SplitType, parseToCents, formatCents } from '@/lib/split';
 import { dataStore } from '@/lib/store';
+import { useCurrency } from '@/hooks/useCurrency';
+import { useCurrencySymbol } from '@/hooks/useCurrencySymbol';
 
 interface AddExpenseFormProps {
   groupId: string;
@@ -18,6 +20,8 @@ interface AddExpenseFormProps {
 }
 
 export default function AddExpenseForm({ groupId, members, onClose, onSuccess }: AddExpenseFormProps) {
+  const userCurrency = useCurrency();
+  const currencySymbol = useCurrencySymbol();
   const [step, setStep] = useState(1);
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
@@ -28,7 +32,30 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess }:
   const [splitType, setSplitType] = useState<SplitType>('equal');
   const [customSplits, setCustomSplits] = useState<{ [userId: string]: string }>({});
 
-  const handleSubmit = () => {
+  // Handle split type change and reset values
+  const handleSplitTypeChange = (newType: SplitType) => {
+    setSplitType(newType);
+    // Reset custom splits to 0 when changing type
+    if (newType === 'percentage' || newType === 'exact') {
+      setCustomSplits({});
+    }
+  };
+
+  // Calculate total percentage
+  const getTotalPercentage = () => {
+    return selectedParticipants.reduce((sum, id) => {
+      return sum + (parseFloat(customSplits[id]) || 0);
+    }, 0);
+  };
+
+  // Calculate total exact amount
+  const getTotalExactAmount = () => {
+    return selectedParticipants.reduce((sum, id) => {
+      return sum + (parseFloat(customSplits[id]) || 0);
+    }, 0);
+  };
+
+  const handleSubmit = async () => {
     try {
       const amountCents = parseToCents(amount);
       
@@ -55,7 +82,7 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess }:
         }));
       }
 
-      dataStore.addExpense(
+      await dataStore.addExpense(
         groupId,
         title,
         amountCents,
@@ -107,7 +134,7 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess }:
               <div
                 key={s}
                 className={`flex-1 h-2 rounded-full ${
-                  s <= step ? 'bg-teal-500' : 'bg-gray-200'
+                  s <= step ? 'bg-[#FF007F]' : 'bg-gray-200'
                 }`}
               />
             ))}
@@ -205,7 +232,7 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess }:
                       <div key={member.id} className="flex items-center gap-3 p-3 rounded-lg border-2 border-gray-200">
                         <Avatar alt={member.name} initials={member.name} size="sm" />
                         <span className="flex-1 font-medium">{member.name}</span>
-                        <span className="text-gray-600">$</span>
+                        <span className="text-gray-600">{currencySymbol}</span>
                         <input
                           type="number"
                           step="0.01"
@@ -216,10 +243,33 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess }:
                         />
                       </div>
                     ))}
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <p className="text-sm text-gray-600">Total paid: ${
-                        Object.values(payerAmounts).reduce((sum, val) => sum + (parseFloat(val) || 0), 0).toFixed(2)
-                      }</p>
+                    <div className={`p-3 rounded-lg ${
+                      Object.values(payerAmounts).reduce((sum, val) => sum + (parseFloat(val) || 0), 0) !== parseFloat(amount || '0')
+                        ? 'bg-yellow-50 border-2 border-yellow-300'
+                        : Object.values(payerAmounts).reduce((sum, val) => sum + (parseFloat(val) || 0), 0) > parseFloat(amount || '0')
+                          ? 'bg-red-50 border-2 border-red-300'
+                          : 'bg-green-50 border-2 border-green-300'
+                    }`}>
+                      <p className={`text-sm font-medium ${
+                        Object.values(payerAmounts).reduce((sum, val) => sum + (parseFloat(val) || 0), 0) !== parseFloat(amount || '0')
+                          ? 'text-yellow-700'
+                          : Object.values(payerAmounts).reduce((sum, val) => sum + (parseFloat(val) || 0), 0) > parseFloat(amount || '0')
+                            ? 'text-red-600'
+                            : 'text-green-600'
+                      }`}>
+                        Total paid: {currencySymbol}{Object.values(payerAmounts).reduce((sum, val) => sum + (parseFloat(val) || 0), 0).toFixed(2)} / {currencySymbol}{parseFloat(amount || '0').toFixed(2)}
+                        {Object.values(payerAmounts).reduce((sum, val) => sum + (parseFloat(val) || 0), 0) > parseFloat(amount || '0') && 
+                          <span className="block mt-1">⚠️ Total exceeds expense amount!</span>
+                        }
+                        {Object.values(payerAmounts).reduce((sum, val) => sum + (parseFloat(val) || 0), 0) < parseFloat(amount || '0') && 
+                          Object.values(payerAmounts).reduce((sum, val) => sum + (parseFloat(val) || 0), 0) > 0 &&
+                          <span className="block mt-1">⚠️ Total is less than expense amount!</span>
+                        }
+                        {Object.values(payerAmounts).reduce((sum, val) => sum + (parseFloat(val) || 0), 0) === parseFloat(amount || '0') && 
+                          parseFloat(amount || '0') > 0 &&
+                          <span className="block mt-1">✓ Total matches expense amount</span>
+                        }
+                      </p>
                     </div>
                   </div>
                 )}
@@ -227,7 +277,13 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess }:
 
               <div className="flex justify-between gap-3">
                 <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-                <Button variant="primary" onClick={() => setStep(3)}>Next</Button>
+                <Button 
+                  variant="primary" 
+                  onClick={() => setStep(3)}
+                  disabled={multiplePayers && Object.values(payerAmounts).reduce((sum, val) => sum + (parseFloat(val) || 0), 0) !== parseFloat(amount || '0')}
+                >
+                  Next
+                </Button>
               </div>
             </div>
           )}
@@ -293,7 +349,7 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess }:
                 {/* Split Type Selection */}
                 <div className="grid grid-cols-3 gap-3 mb-6">
                   <button
-                    onClick={() => setSplitType('equal')}
+                    onClick={() => handleSplitTypeChange('equal')}
                     className={`p-4 rounded-lg border-2 text-center transition ${
                       splitType === 'equal'
                         ? 'border-teal-500 bg-teal-50'
@@ -304,7 +360,7 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess }:
                     <div className="font-semibold">Equally</div>
                   </button>
                   <button
-                    onClick={() => setSplitType('percentage')}
+                    onClick={() => handleSplitTypeChange('percentage')}
                     className={`p-4 rounded-lg border-2 text-center transition ${
                       splitType === 'percentage'
                         ? 'border-teal-500 bg-teal-50'
@@ -315,7 +371,7 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess }:
                     <div className="font-semibold">Percentage</div>
                   </button>
                   <button
-                    onClick={() => setSplitType('exact')}
+                    onClick={() => handleSplitTypeChange('exact')}
                     className={`p-4 rounded-lg border-2 text-center transition ${
                       splitType === 'exact'
                         ? 'border-teal-500 bg-teal-50'
@@ -331,7 +387,7 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess }:
                 {splitType === 'equal' && (
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <p className="text-sm text-gray-600 mb-2">Each person pays:</p>
-                    <p className="text-2xl font-bold text-teal-600">${calculateSplit()}</p>
+                    <p className="text-2xl font-bold text-teal-600">{currencySymbol}{calculateSplit()}</p>
                   </div>
                 )}
 
@@ -355,6 +411,16 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess }:
                         </div>
                       );
                     })}
+                    <div className={`p-3 rounded-lg ${
+                      getTotalPercentage() > 100 ? 'bg-red-50 border-2 border-red-300' : 'bg-gray-50'
+                    }`}>
+                      <p className={`text-sm font-medium ${
+                        getTotalPercentage() > 100 ? 'text-red-600' : 'text-gray-600'
+                      }`}>
+                        Total: {getTotalPercentage().toFixed(1)}%
+                        {getTotalPercentage() > 100 && <span className="block mt-1">⚠️ Total exceeds 100%!</span>}
+                      </p>
+                    </div>
                   </div>
                 )}
 
@@ -367,7 +433,7 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess }:
                         <div key={id} className="flex items-center gap-3">
                           <Avatar alt={member?.name} initials={member?.name} size="sm" />
                           <span className="flex-1 font-medium">{member?.name}</span>
-                          <span className="text-gray-600">$</span>
+                          <span className="text-gray-600">{currencySymbol}</span>
                           <input
                             type="number"
                             step="0.01"
@@ -379,13 +445,32 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess }:
                         </div>
                       );
                     })}
+                    <div className={`p-3 rounded-lg ${
+                      getTotalExactAmount() > parseFloat(amount || '0') ? 'bg-red-50 border-2 border-red-300' : 'bg-gray-50'
+                    }`}>
+                      <p className={`text-sm font-medium ${
+                        getTotalExactAmount() > parseFloat(amount || '0') ? 'text-red-600' : 'text-gray-600'
+                      }`}>
+                        Total: {currencySymbol}{getTotalExactAmount().toFixed(2)}
+                        {getTotalExactAmount() > parseFloat(amount || '0') && 
+                          <span className="block mt-1">⚠️ Total exceeds expense amount!</span>
+                        }
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
 
               <div className="flex justify-between gap-3">
                 <Button variant="outline" onClick={() => setStep(3)}>Back</Button>
-                <Button variant="primary" onClick={handleSubmit}>
+                <Button 
+                  variant="primary" 
+                  onClick={handleSubmit}
+                  disabled={
+                    (splitType === 'percentage' && getTotalPercentage() > 100) ||
+                    (splitType === 'exact' && getTotalExactAmount() > parseFloat(amount || '0'))
+                  }
+                >
                   Add Expense
                 </Button>
               </div>

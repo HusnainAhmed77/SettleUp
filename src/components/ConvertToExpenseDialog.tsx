@@ -7,6 +7,7 @@ import { Group } from '@/lib/mockData';
 import { useUpcomingExpensesActions } from '@/hooks/useStore';
 import { formatCents } from '@/lib/split';
 import Button from '@/components/ui/Button';
+import { useCurrency } from '@/hooks/useCurrency';
 
 interface ConvertToExpenseDialogProps {
   expense: UpcomingExpense;
@@ -21,6 +22,7 @@ export default function ConvertToExpenseDialog({
   onClose,
   onSuccess,
 }: ConvertToExpenseDialogProps) {
+  const userCurrency = useCurrency();
   const { convertToExpense } = useUpcomingExpensesActions();
   const [payerId, setPayerId] = useState(expense.participants[0] || '');
   const [actualDate, setActualDate] = useState(
@@ -68,7 +70,7 @@ export default function ConvertToExpenseDialog({
             <div className="flex justify-between">
               <span className="text-sm text-[#666666]">Amount:</span>
               <span className="font-medium text-[#333333]">
-                {formatCents(expense.amountCents)}
+                {formatCents(expense.amountCents, userCurrency)}
               </span>
             </div>
             <div className="flex justify-between">
