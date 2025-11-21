@@ -3,31 +3,47 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, ChevronDown, User, Settings, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Avatar from "@/components/ui/Avatar";
 import { navbarService, NavLink, NavButton } from "@/services/navbarService";
+import { useAuth } from "@/contexts/AuthContext";
+import { useProfilePicture } from "@/hooks/useProfilePicture";
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const [navLinks, setNavLinks] = useState<NavLink[]>([]);
   const [loginButton, setLoginButton] = useState<NavButton | null>(null);
   const [signupButton, setSignupButton] = useState<NavButton | null>(null);
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
 
-  // Mock user state - replace with actual auth state
-  const isLoggedIn = false;
-  const user = {
-    name: "John Doe",
-    email: "john@example.com",
-    avatar: "",
-  };
+  // Get auth state
+  const { isAuthenticated, user: authUser, logout } = useAuth();
+  const profilePicture = useProfilePicture();
 
   const isActive = (path: string) => pathname === path;
+
+  // Handle click outside to close user menu
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+
+    if (userMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [userMenuOpen]);
 
   // Fetch navigation links and buttons from Appwrite
   useEffect(() => {
@@ -113,14 +129,22 @@ export default function Navbar() {
 
           {/* Right Side - Auth or User Menu */}
           <div className="hidden lg:flex items-center space-x-4">
-            {isLoggedIn ? (
-              <div className="relative">
+            {isAuthenticated && authUser ? (
+              <div className="relative" ref={userMenuRef}>
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
                   className="flex items-center space-x-2 hover:bg-gray-50 rounded-lg px-3 py-2 transition-colors"
                 >
-                  <Avatar src={user.avatar} alt={user.name} size="sm" />
-                  <span className="text-sm font-medium text-gray-700">{user.name}</span>
+                  {profilePicture ? (
+                    <img
+                      src={profilePicture}
+                      alt={authUser.name}
+                      className="w-8 h-8 rounded-full object-cover border-2 border-[#00CFFF]"
+                    />
+                  ) : (
+                    <Avatar alt={authUser.name} initials={authUser.name} size="sm" />
+                  )}
+                  <span className="text-sm font-medium text-gray-700">{authUser.name}</span>
                   <ChevronDown className={cn(
                     "w-4 h-4 text-gray-500 transition-transform",
                     userMenuOpen && "rotate-180"
@@ -134,11 +158,12 @@ export default function Navbar() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
                       transition={{ duration: 0.2 }}
-                      className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2"
+                      className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50"
                     >
                       <Link
                         href="/dashboard"
                         className="flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        onClick={() => setUserMenuOpen(false)}
                       >
                         <User className="w-4 h-4" />
                         <span>Dashboard</span>
@@ -146,13 +171,18 @@ export default function Navbar() {
                       <Link
                         href="/settings"
                         className="flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        onClick={() => setUserMenuOpen(false)}
                       >
                         <Settings className="w-4 h-4" />
                         <span>Settings</span>
                       </Link>
                       <div className="border-t border-gray-200 my-2" />
                       <button
-                        className="flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors w-full"
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          logout();
+                        }}
+                        className="flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors w-full text-left"
                       >
                         <LogOut className="w-4 h-4" />
                         <span>Log out</span>
@@ -234,7 +264,7 @@ export default function Navbar() {
                   )}
                   
                   <div className="pt-4 mt-4 border-t border-gray-200 flex flex-col space-y-2">
-                    {isLoggedIn ? (
+                    {isAuthenticated && authUser ? (
                       <>
                         <Link
                           href="/dashboard"
@@ -251,6 +281,10 @@ export default function Navbar() {
                           Settings
                         </Link>
                         <button
+                          onClick={() => {
+                            setMobileMenuOpen(false);
+                            logout();
+                          }}
                           className="px-4 py-3 text-base font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left"
                         >
                           Log out

@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useCurrencySymbol } from '@/hooks/useCurrencySymbol';
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -95,10 +96,12 @@ export interface CurrencyInputProps extends Omit<InputProps, 'type'> {
 
 export const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
   ({ currency = 'USD', className, ...props }, ref) => {
+    const currencySymbol = useCurrencySymbol();
+    
     return (
       <div className="relative">
         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-lg">
-          $
+          {currencySymbol}
         </span>
         <Input
           ref={ref}

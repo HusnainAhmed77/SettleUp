@@ -2,21 +2,39 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Mail, Lock, Facebook, Chrome } from 'lucide-react';
+import { User, Mail, Lock, Chrome } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function AuthPage() {
   const searchParams = useSearchParams();
   const mode = searchParams.get('mode');
   const [isSignUp, setIsSignUp] = useState(mode !== 'signin');
   const router = useRouter();
+  const { signUp, login, loginWithGoogle, isAuthenticated, loading: authLoading } = useAuth();
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     // Update state when URL changes
     setIsSignUp(mode !== 'signin');
-  }, [mode]);
+    
+    // Check for OAuth error in URL
+    const oauthError = searchParams.get('error');
+    if (oauthError === 'oauth_failed') {
+      setError('Google sign-in failed. Please try again.');
+    }
+  }, [mode, searchParams]);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      router.push('/dashboard');
+    }
+  }, [isAuthenticated, authLoading, router]);
 
   const [signUpData, setSignUpData] = useState({
     name: '',
@@ -29,23 +47,61 @@ export default function AuthPage() {
     password: ''
   });
 
-  const handleSignUp = (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Sign up:', signUpData);
-    // Handle sign up logic
-    router.push('/dashboard');
+    setError('');
+    setLoading(true);
+
+    try {
+      await signUp(signUpData.email, signUpData.password, signUpData.name);
+      // Redirect handled by AuthContext
+    } catch (err: any) {
+      setError(err.message || 'Sign up failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Sign in:', signInData);
-    // Handle sign in logic
-    router.push('/dashboard');
+    setError('');
+    setLoading(true);
+
+    try {
+      await login(signInData.email, signInData.password);
+      // Redirect handled by AuthContext
+    } catch (err: any) {
+      setError(err.message || 'Sign in failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleAuth = async () => {
+    setError('');
+    try {
+      await loginWithGoogle();
+      // OAuth will redirect
+    } catch (err: any) {
+      setError(err.message || 'Google sign-in failed');
+    }
   };
 
   const toggleMode = () => {
     setIsSignUp(!isSignUp);
+    setError('');
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#FF007F] mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen relative flex items-center justify-center p-4 overflow-hidden">
@@ -76,7 +132,7 @@ export default function AuthPage() {
                 transition={{ duration: 0.3 }}
                 className="w-full h-full flex"
               >
-                {/* Left Panel - Teal (Welcome Back) */}
+                {/* Left Panel - Gradient (Welcome Back) */}
                 <motion.div
                   initial={{ x: 0 }}
                   animate={{ x: 0 }}
@@ -118,10 +174,13 @@ export default function AuthPage() {
                     
                     {/* Social Login */}
                     <div className="flex justify-center gap-4 my-6">
-                      <button className="w-12 h-12 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-[#FF007F] hover:text-[#FF007F] transition-colors">
-                        <Facebook className="w-5 h-5" />
-                      </button>
-                      <button className="w-12 h-12 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-[#FF007F] hover:text-[#FF007F] transition-colors">
+                      <button 
+                        type="button"
+                        onClick={handleGoogleAuth}
+                        disabled={loading}
+                        className="w-12 h-12 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-[#FF007F] hover:text-[#FF007F] transition-colors disabled:opacity-50"
+                        title="Sign up with Google"
+                      >
                         <Chrome className="w-5 h-5" />
                       </button>
                     </div>
@@ -129,6 +188,12 @@ export default function AuthPage() {
                     <p className="text-center text-gray-500 text-sm mb-6">
                       or use your email for registration:
                     </p>
+
+                    {error && (
+                      <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm text-center">
+                        {error}
+                      </div>
+                    )}
 
                     <form onSubmit={handleSignUp} className="space-y-4">
                       <div className="relative">
@@ -140,6 +205,7 @@ export default function AuthPage() {
                           onChange={(e) => setSignUpData({...signUpData, name: e.target.value})}
                           className="w-full pl-12 pr-4 py-3 bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF007F]"
                           required
+                          disabled={loading}
                         />
                       </div>
 
@@ -152,6 +218,7 @@ export default function AuthPage() {
                           onChange={(e) => setSignUpData({...signUpData, email: e.target.value})}
                           className="w-full pl-12 pr-4 py-3 bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF007F]"
                           required
+                          disabled={loading}
                         />
                       </div>
 
@@ -159,19 +226,22 @@ export default function AuthPage() {
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                         <input
                           type="password"
-                          placeholder="Password"
+                          placeholder="Password (min 8 characters)"
                           value={signUpData.password}
                           onChange={(e) => setSignUpData({...signUpData, password: e.target.value})}
                           className="w-full pl-12 pr-4 py-3 bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF007F]"
                           required
+                          minLength={8}
+                          disabled={loading}
                         />
                       </div>
 
                       <button
                         type="submit"
-                        className="w-full py-3 bg-[#FF007F] hover:bg-[#00CFFF] text-white font-semibold rounded-full transition-all duration-300 shadow-lg hover:shadow-xl mt-6"
+                        disabled={loading}
+                        className="w-full py-3 bg-[#FF007F] hover:bg-[#00CFFF] text-white font-semibold rounded-full transition-all duration-300 shadow-lg hover:shadow-xl mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        SIGN UP
+                        {loading ? 'SIGNING UP...' : 'SIGN UP'}
                       </button>
                     </form>
                   </div>
@@ -200,10 +270,13 @@ export default function AuthPage() {
                     
                     {/* Social Login */}
                     <div className="flex justify-center gap-4 my-6">
-                      <button className="w-12 h-12 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-[#FF007F] hover:text-[#FF007F] transition-colors">
-                        <Facebook className="w-5 h-5" />
-                      </button>
-                      <button className="w-12 h-12 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-[#FF007F] hover:text-[#FF007F] transition-colors">
+                      <button 
+                        type="button"
+                        onClick={handleGoogleAuth}
+                        disabled={loading}
+                        className="w-12 h-12 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-[#FF007F] hover:text-[#FF007F] transition-colors disabled:opacity-50"
+                        title="Sign in with Google"
+                      >
                         <Chrome className="w-5 h-5" />
                       </button>
                     </div>
@@ -211,6 +284,12 @@ export default function AuthPage() {
                     <p className="text-center text-gray-500 text-sm mb-6">
                       or use your email account:
                     </p>
+
+                    {error && (
+                      <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm text-center">
+                        {error}
+                      </div>
+                    )}
 
                     <form onSubmit={handleSignIn} className="space-y-4">
                       <div className="relative">
@@ -222,6 +301,7 @@ export default function AuthPage() {
                           onChange={(e) => setSignInData({...signInData, email: e.target.value})}
                           className="w-full pl-12 pr-4 py-3 bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF007F]"
                           required
+                          disabled={loading}
                         />
                       </div>
 
@@ -234,6 +314,7 @@ export default function AuthPage() {
                           onChange={(e) => setSignInData({...signInData, password: e.target.value})}
                           className="w-full pl-12 pr-4 py-3 bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF007F]"
                           required
+                          disabled={loading}
                         />
                       </div>
 
@@ -245,15 +326,16 @@ export default function AuthPage() {
 
                       <button
                         type="submit"
-                        className="w-full py-3 bg-[#FF007F] hover:bg-[#00CFFF] text-white font-semibold rounded-full transition-all duration-300 shadow-lg hover:shadow-xl mt-6"
+                        disabled={loading}
+                        className="w-full py-3 bg-[#FF007F] hover:bg-[#00CFFF] text-white font-semibold rounded-full transition-all duration-300 shadow-lg hover:shadow-xl mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        SIGN IN
+                        {loading ? 'SIGNING IN...' : 'SIGN IN'}
                       </button>
                     </form>
                   </div>
                 </motion.div>
 
-                {/* Right Panel - Teal (Hello Friend) */}
+                {/* Right Panel - Gradient (Hello Friend) */}
                 <motion.div
                   initial={{ x: '100%' }}
                   animate={{ x: 0 }}

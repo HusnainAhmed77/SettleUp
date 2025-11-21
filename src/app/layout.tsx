@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 const inter = Inter({ 
   subsets: ["latin"],
@@ -27,11 +28,13 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
       <body className="antialiased flex flex-col min-h-screen bg-gray-50 text-gray-900">
-        <Navbar />
-        <main className="flex-grow bg-gray-50 text-gray-900">
-          {children}
-        </main>
-        <Footer />
+        <AuthProvider>
+          <Navbar />
+          <main className="flex-grow bg-gray-50 text-gray-900">
+            {children}
+          </main>
+          <Footer />
+        </AuthProvider>
       </body>
     </html>
   );

@@ -39,6 +39,15 @@ export default function UpcomingExpensesSection() {
     setShowConvertDialog(true);
   };
 
+  const handleAddClick = () => {
+    if (groups.length === 0) {
+      alert('Please create a group first before adding an upcoming expense.');
+      return;
+    }
+    setSelectedExpense(null);
+    setShowAddForm(true);
+  };
+
   return (
     <div className="mt-12">
       <div className="flex items-center justify-between mb-6">
@@ -53,10 +62,7 @@ export default function UpcomingExpensesSection() {
         <Button 
           variant="primary"
           className="gap-2"
-          onClick={() => {
-            setSelectedExpense(null);
-            setShowAddForm(true);
-          }}
+          onClick={handleAddClick}
         >
           <Plus className="w-5 h-5" />
           Add Upcoming Expense
@@ -96,10 +102,7 @@ export default function UpcomingExpensesSection() {
             </p>
             <Button 
               variant="primary"
-              onClick={() => {
-                setSelectedExpense(null);
-                setShowAddForm(true);
-              }}
+              onClick={handleAddClick}
             >
               <Plus className="w-5 h-5 mr-2" />
               Add Your First Upcoming Expense

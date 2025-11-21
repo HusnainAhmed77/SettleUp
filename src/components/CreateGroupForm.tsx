@@ -1,68 +1,231 @@
 'use client';
 
-import { useState } from 'react';
-import { X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Users, UserCheck } from 'lucide-react';
 import Button from './ui/Button';
 import Input from './ui/Input';
 import { dataStore } from '@/lib/store';
-import { mockUsers } from '@/lib/mockData';
+import { useAuth } from '@/contexts/AuthContext';
+import { currentUser } from '@/lib/mockData';
+import { getFriends } from '@/services/friendService';
+import { createGroup as createGroupService } from '@/lib/services/groupsService';
 
 interface CreateGroupFormProps {
   onClose: () => void;
   onSuccess: () => void;
 }
 
+interface Friend {
+  $id: string;
+  userId: string;
+  name: string;
+  email: string;
+}
+
 export default function CreateGroupForm({ onClose, onSuccess }: CreateGroupFormProps) {
+  const { user } = useAuth();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [memberNames, setMemberNames] = useState<string[]>(['You']); // Start with "You"
+  const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]); // Track selected friend IDs for sharing
+  const [currentMemberName, setCurrentMemberName] = useState('');
+  const [friends, setFriends] = useState<Friend[]>([]);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Load friends
+  useEffect(() => {
+    const loadFriends = async () => {
+      if (user?.$id) {
+        try {
+          const friendsList = await getFriends(user.$id);
+          setFriends(friendsList as Friend[]);
+        } catch (error) {
+          console.error('Failed to load friends:', error);
+        }
+      }
+    };
+    
+    loadFriends();
+  }, [user]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent double submission
+    if (isSubmitting) {
+      console.log('⚠️ Form already submitting, ignoring duplicate submission');
+      return;
+    }
+    
+    setIsSubmitting(true);
     setError('');
 
     if (!name.trim()) {
       setError('Group name is required');
+      setIsSubmitting(false);
       return;
     }
 
-    if (selectedMembers.length === 0) {
-      setError('Please select at least one member');
+    if (memberNames.length < 2 && selectedFriendIds.length === 0) {
+      setError('Please add at least 2 members (including yourself) or select friends to share with');
+      setIsSubmitting(false);
       return;
     }
 
     try {
-      dataStore.createGroup(name, description, selectedMembers);
+      console.log('🔵 Creating group:', name);
+      // Create actual User objects for each member name
+      const memberIds: string[] = [];
+      
+      memberNames.forEach((memberName) => {
+        if (memberName === 'You') {
+          // Use real Appwrite user ID for authenticated users
+          if (user?.$id) {
+            memberIds.push(user.$id);  // Real Appwrite ID!
+          } else {
+            memberIds.push(currentUser.id);  // Fallback to mock for demo mode
+          }
+        } else {
+          // Create a new user for each friend name (non-registered members)
+          const email = `${memberName.toLowerCase().replace(/\s+/g, '.')}@example.com`;
+          const existingUser = dataStore.getUsers().find(u => u.name === memberName);
+          
+          if (existingUser) {
+            memberIds.push(existingUser.id);
+          } else {
+            const newUser = dataStore.createUser(memberName, email);
+            memberIds.push(newUser.id);
+          }
+        }
+      });
+
+      // Combine member IDs with selected friend IDs (friends are verified users)
+      const allMemberIds = [...new Set([...memberIds, ...selectedFriendIds])];
+
+      // Ensure all users exist in the dataStore users array
+      const currentUsers = dataStore.getUsers();
+      
+      // Add authenticated user if not already in dataStore
+      if (user?.$id) {
+        const existingCurrentUser = currentUsers.find(u => u.id === user.$id);
+        if (!existingCurrentUser) {
+          currentUsers.push({
+            id: user.$id,
+            name: user.name,
+            email: user.email,
+          });
+        }
+      }
+      
+      // Add all selected friends to dataStore
+      selectedFriendIds.forEach(friendId => {
+        const friend = friends.find(f => f.userId === friendId);
+        if (friend) {
+          // Check if user already exists in dataStore
+          const existingUser = currentUsers.find(u => u.id === friendId);
+          if (!existingUser) {
+            // Add friend as a user to dataStore directly
+            currentUsers.push({
+              id: friendId,
+              name: friend.name,
+              email: friend.email,
+            });
+          }
+        }
+      });
+
+      // Convert member IDs to User objects
+      const memberUsers = allMemberIds.map(id => {
+        const user = currentUsers.find(u => u.id === id);
+        if (user) return user;
+        // Fallback for any missing users
+        return {
+          id,
+          name: `User ${id.substring(0, 8)}`,
+          email: `user-${id}@example.com`,
+        };
+      });
+
+      // Create group using groupsService (for Appwrite with sharedWith)
+      // This will also create the JSON document in expenses_data collection
+      if (user?.$id) {
+        // Create in Appwrite with sharedWith support - pass selectedFriendIds directly
+        const createdGroup = await createGroupService(
+          user.$id, 
+          {
+            name,
+            description,
+            members: memberUsers, // Pass User objects instead of IDs
+          }, 
+          selectedFriendIds, // Pass friend IDs to be added to sharedWith during creation
+          user.name, // Pass creator name
+          user.email, // Pass creator email
+          'USD' // Default currency
+        );
+        console.log('✅ Group created:', createdGroup);
+      } else {
+        // Fallback to dataStore for demo mode (no authenticated user)
+        await dataStore.createGroup(name, description, allMemberIds);
+      }
+
       onSuccess();
       onClose();
     } catch (err) {
+      console.error('Error creating group:', err);
       setError('Failed to create group');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const toggleMember = (userId: string) => {
-    setSelectedMembers(prev =>
-      prev.includes(userId)
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
-    );
+  const addMember = () => {
+    const trimmedName = currentMemberName.trim();
+    if (trimmedName && !memberNames.includes(trimmedName)) {
+      setMemberNames(prev => [...prev, trimmedName]);
+      setCurrentMemberName('');
+    }
+  };
+
+  const removeMember = (nameToRemove: string) => {
+    // Don't allow removing "You"
+    if (nameToRemove === 'You') {
+      return;
+    }
+    setMemberNames(prev => prev.filter(name => name !== nameToRemove));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addMember();
+    }
+  };
+
+  const toggleFriendSelection = (friendUserId: string) => {
+    setSelectedFriendIds(prev => {
+      if (prev.includes(friendUserId)) {
+        return prev.filter(id => id !== friendUserId);
+      } else {
+        return [...prev, friendUserId];
+      }
+    });
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Create New Group</h2>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full my-8">
+        <div className="sticky top-0 bg-white border-b px-4 py-3 flex items-center justify-between rounded-t-lg">
+          <h2 className="text-xl font-bold text-gray-900">Create New Group</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-4 space-y-4 max-h-[calc(90vh-8rem)] overflow-y-auto">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
               {error}
@@ -83,47 +246,118 @@ export default function CreateGroupForm({ onClose, onSuccess }: CreateGroupFormP
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               Description
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Optional description"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
+              rows={2}
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Select Members *
-            </label>
-            <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
-              {mockUsers.map(user => (
-                <label
-                  key={user.id}
-                  className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedMembers.includes(user.id)}
-                    onChange={() => toggleMember(user.id)}
-                    className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
-                  />
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">{user.name}</p>
-                    <p className="text-sm text-gray-500">{user.email}</p>
-                  </div>
-                </label>
-              ))}
+          {/* Friends Selection Section */}
+          {friends.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="w-4 h-4" />
+                  <span>Add Friends to Group</span>
+                </div>
+              </label>
+              <div className="border border-gray-200 rounded-lg p-2 max-h-32 overflow-y-auto space-y-1">
+                {friends.map((friend) => (
+                  <label
+                    key={friend.userId}
+                    className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50 cursor-pointer transition"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedFriendIds.includes(friend.userId)}
+                      onChange={() => toggleFriendSelection(friend.userId)}
+                      className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-900 text-sm truncate">{friend.name}</div>
+                      <div className="text-xs text-gray-500 truncate">{friend.email}</div>
+                    </div>
+                    {selectedFriendIds.includes(friend.userId) && (
+                      <UserCheck className="w-4 h-4 text-teal-600 flex-shrink-0" />
+                    )}
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {selectedFriendIds.length} friend{selectedFriendIds.length !== 1 ? 's' : ''} selected
+              </p>
             </div>
-            <p className="text-sm text-gray-500 mt-2">
-              {selectedMembers.length} member{selectedMembers.length !== 1 ? 's' : ''} selected
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                <span>Add Members by Name (Optional)</span>
+              </div>
+            </label>
+            <p className="text-xs text-gray-500 mb-1">
+              Add members who aren't in your friends list yet
+            </p>
+            <div className="flex gap-2 mb-2">
+              <Input
+                type="text"
+                value={currentMemberName}
+                onChange={(e) => setCurrentMemberName(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Enter member name"
+                className="text-sm"
+              />
+              <Button
+                type="button"
+                onClick={addMember}
+                variant="primary"
+                disabled={!currentMemberName.trim()}
+                size="sm"
+              >
+                Add
+              </Button>
+            </div>
+            
+            {memberNames.length > 0 && (
+              <div className="space-y-1 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                {memberNames.map((memberName) => (
+                  <div
+                    key={memberName}
+                    className={`flex items-center justify-between p-1.5 rounded text-sm ${
+                      memberName === 'You' ? 'bg-teal-50 border border-teal-200' : 'bg-gray-50'
+                    }`}
+                  >
+                    <span className={`font-medium ${memberName === 'You' ? 'text-teal-700' : 'text-gray-900'}`}>
+                      {memberName}
+                      {memberName === 'You' && <span className="text-xs ml-1 text-teal-600">(You)</span>}
+                    </span>
+                    {memberName !== 'You' && (
+                      <button
+                        type="button"
+                        onClick={() => removeMember(memberName)}
+                        className="text-red-500 hover:text-red-700 transition"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <p className="text-xs text-gray-500 mt-1">
+              {memberNames.length} member{memberNames.length !== 1 ? 's' : ''} added
             </p>
           </div>
 
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-3 pt-2 sticky bottom-0 bg-white border-t -mx-4 px-4 py-3">
             <Button
               type="button"
               variant="outline"
@@ -136,8 +370,9 @@ export default function CreateGroupForm({ onClose, onSuccess }: CreateGroupFormP
               type="submit"
               variant="primary"
               className="flex-1"
+              disabled={isSubmitting}
             >
-              Create Group
+              {isSubmitting ? 'Creating...' : 'Create Group'}
             </Button>
           </div>
         </form>

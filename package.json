@@ -6,12 +6,18 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "setup:friends-admin": "node scripts/setup-friends-admin-collections.js",
+    "migrate:friends-admin": "node scripts/migrate-existing-data.js"
   },
   "dependencies": {
     "appwrite": "^21.4.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.2.3",
     "framer-motion": "^12.23.24",
     "lucide-react": "^0.553.0",
     "next": "16.0.1",
@@ -25,13 +31,21 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/user-event": "^14.5.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4.2.1",
+    "@vitest/ui": "^1.0.4",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.0.1",
+    "fast-check": "^3.15.0",
+    "jsdom": "^23.0.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^1.0.4"
   }
 }

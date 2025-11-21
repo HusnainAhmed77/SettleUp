@@ -1,14 +1,21 @@
-import {Client, Databases, Storage, Account, Query} from 'appwrite'
+import {Client, Databases, Storage, Account, Query, ID} from 'appwrite'
 
 const client = new Client()
     .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
     .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!);
 
+// Configure client for better Safari compatibility
+if (typeof window !== 'undefined') {
+  // Ensure cookies are set with SameSite=None for OAuth
+  // This helps with Safari's third-party cookie restrictions
+  client.headers['X-Fallback-Cookies'] = 'true';
+}
+
     export const databases = new Databases(client);
     export const storage = new Storage(client);
     export const account = new Account(client);
 
-    export {Query};
+    export {Query, ID};
 
     // Database IDs
     export const CMS_DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!; // settleup_cms
@@ -39,9 +46,12 @@ const client = new Client()
     export const APP_COLLECTIONS = {
         GROUPS: 'groups',
         EXPENSES: 'expenses',
+        EXPENSES_DATA: 'expenses_data', // JSON-based group data
         MEMBER_NAMES: 'member_names',
-        USER_PROFILES: 'user_profiles',
+        USER_PROFILES: 'userprofiles',
         CONTACT_SUBMISSIONS: 'contact_submissions',
+        ADMIN_SETTLEMENTS: 'admin_settlements',
+        FRIENDS: 'friends',
     };
 
     // Legacy export for backward compatibility
@@ -50,4 +60,8 @@ const client = new Client()
         ...APP_COLLECTIONS,
     };
 
+    // Storage Buckets
+    export const STORAGE_BUCKETS = {
+        PROFILE_PICTURES: 'profile_pictures',
+    };
     

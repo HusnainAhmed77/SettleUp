@@ -7,6 +7,7 @@ import { useGroups, useUpcomingExpensesActions } from '@/hooks/useStore';
 import { currentUser } from '@/lib/mockData';
 import { cn } from '@/lib/utils';
 import Button from '@/components/ui/Button';
+import { useCurrencySymbol } from '@/hooks/useCurrencySymbol';
 
 interface AddUpcomingExpenseFormProps {
   expense?: UpcomingExpense | null;
@@ -148,14 +149,16 @@ export default function AddUpcomingExpenseForm({
         newSplits[userId] = perPerson + (index < remainder ? 1 : 0);
       });
       setFormData(prev => ({ ...prev, splits: newSplits }));
-    } else if (formData.splitType === 'percentage' && Object.keys(formData.splits).length === 0) {
+    } else if (formData.splitType === 'percentage') {
+      // Reset to equal percentages when switching to percentage mode
       const perPerson = 100 / formData.participants.length;
       const newSplits: { [userId: string]: number } = {};
       formData.participants.forEach(userId => {
         newSplits[userId] = perPerson;
       });
       setFormData(prev => ({ ...prev, splits: newSplits }));
-    } else if (formData.splitType === 'exact' && Object.keys(formData.splits).length === 0) {
+    } else if (formData.splitType === 'exact') {
+      // Reset to equal amounts when switching to exact mode
       const amountCents = Math.round(parseFloat(formData.amount || '0') * 100);
       const perPerson = Math.floor(amountCents / formData.participants.length);
       const newSplits: { [userId: string]: number } = {};
@@ -190,9 +193,9 @@ export default function AddUpcomingExpenseForm({
               className={cn(
                 'w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all',
                 currentStep === step
-                  ? 'bg-[#3cc9bb] text-white scale-110'
+                  ? 'bg-[#FF007F] text-white scale-110'
                   : currentStep > step
-                  ? 'bg-green-500 text-white'
+                  ? 'bg-[#FF007F] text-white'
                   : 'bg-gray-200 text-gray-500'
               )}
             >
@@ -244,7 +247,7 @@ export default function AddUpcomingExpenseForm({
               <Button 
                 variant="primary" 
                 onClick={handleNext}
-                className="bg-[#3cc9bb] hover:bg-[#35b3a7]"
+                className="bg-[#FF007F] hover:bg-[#E6006F]"
               >
                 Next
               </Button>
@@ -252,7 +255,7 @@ export default function AddUpcomingExpenseForm({
               <Button 
                 variant="primary" 
                 onClick={handleSubmit}
-                className="bg-[#3cc9bb] hover:bg-[#35b3a7]"
+                className="bg-[#FF007F] hover:bg-[#E6006F]"
               >
                 {expense ? 'Save Changes' : 'Create Upcoming Expense'}
               </Button>
@@ -267,6 +270,7 @@ export default function AddUpcomingExpenseForm({
 
 // Step 1: Basic Details
 function Step1BasicDetails({ formData, setFormData, groups, errors }: any) {
+  const currencySymbol = useCurrencySymbol();
   const today = new Date().toISOString().split('T')[0];
   const oneYearFromNow = new Date();
   oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
@@ -288,7 +292,7 @@ function Step1BasicDetails({ formData, setFormData, groups, errors }: any) {
             'w-full px-4 py-3 rounded-lg border-2 transition-all',
             errors.title
               ? 'border-red-300 focus:border-red-500'
-              : 'border-gray-300 focus:border-[#3cc9bb]'
+              : 'border-gray-300 focus:border-[#00CFFF]'
           )}
         />
         {errors.title && (
@@ -303,7 +307,7 @@ function Step1BasicDetails({ formData, setFormData, groups, errors }: any) {
         </label>
         <div className="relative">
           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">
-            $
+            {currencySymbol}
           </span>
           <input
             type="number"
@@ -316,7 +320,7 @@ function Step1BasicDetails({ formData, setFormData, groups, errors }: any) {
               'w-full pl-8 pr-4 py-3 rounded-lg border-2 transition-all font-mono',
               errors.amount
                 ? 'border-red-300 focus:border-red-500'
-                : 'border-gray-300 focus:border-[#3cc9bb]'
+                : 'border-gray-300 focus:border-[#00CFFF]'
             )}
           />
         </div>
@@ -340,7 +344,7 @@ function Step1BasicDetails({ formData, setFormData, groups, errors }: any) {
             'w-full px-4 py-3 rounded-lg border-2 transition-all',
             errors.targetDate
               ? 'border-red-300 focus:border-red-500'
-              : 'border-gray-300 focus:border-[#3cc9bb]'
+              : 'border-gray-300 focus:border-[#00CFFF]'
           )}
         />
         {errors.targetDate && (
@@ -365,7 +369,7 @@ function Step1BasicDetails({ formData, setFormData, groups, errors }: any) {
             'w-full px-4 py-3 rounded-lg border-2 transition-all',
             errors.groupId
               ? 'border-red-300 focus:border-red-500'
-              : 'border-gray-300 focus:border-[#3cc9bb]'
+              : 'border-gray-300 focus:border-[#00CFFF]'
           )}
         >
           <option value="">Select a group</option>
@@ -390,7 +394,7 @@ function Step1BasicDetails({ formData, setFormData, groups, errors }: any) {
           placeholder="Add any additional details..."
           value={formData.notes}
           onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-          className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#3cc9bb] transition-all resize-none"
+          className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#00CFFF] transition-all resize-none"
         />
       </div>
     </div>
@@ -453,7 +457,7 @@ function Step2Participants({ formData, setFormData, group, errors }: any) {
               'flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer',
               'transition-all duration-200',
               formData.participants.includes(member.id)
-                ? 'border-[#3cc9bb] bg-[#3cc9bb]/5'
+                ? 'border-[#00CFFF] bg-[#00CFFF]/5'
                 : 'border-gray-200 hover:border-gray-300'
             )}
           >
@@ -461,9 +465,9 @@ function Step2Participants({ formData, setFormData, group, errors }: any) {
               type="checkbox"
               checked={formData.participants.includes(member.id)}
               onChange={() => toggleParticipant(member.id)}
-              className="w-5 h-5 text-[#3cc9bb] rounded focus:ring-[#3cc9bb]"
+              className="w-5 h-5 text-[#00CFFF] rounded focus:ring-[#00CFFF]"
             />
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3cc9bb] to-[#35b3a7] flex items-center justify-center text-white font-semibold text-sm">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#00CFFF] to-[#00B8E6] flex items-center justify-center text-white font-semibold text-sm">
               {member.name.charAt(0)}
             </div>
             <span className="font-medium text-[#333333]">{member.name}</span>
@@ -489,6 +493,8 @@ function Step2Participants({ formData, setFormData, group, errors }: any) {
 
 // Step 3: Split Configuration
 function Step3SplitConfig({ formData, setFormData, group, errors }: any) {
+  const currencySymbol = useCurrencySymbol();
+  
   const getUserName = (userId: string) => {
     return group.members.find((m: any) => m.id === userId)?.name || 'Unknown';
   };
@@ -510,7 +516,7 @@ function Step3SplitConfig({ formData, setFormData, group, errors }: any) {
   };
 
   const formatCents = (cents: number) => {
-    return `$${(cents / 100).toFixed(2)}`;
+    return `${currencySymbol}${(cents / 100).toFixed(2)}`;
   };
 
   return (
@@ -523,11 +529,11 @@ function Step3SplitConfig({ formData, setFormData, group, errors }: any) {
         <div className="grid grid-cols-3 gap-3">
           <button
             type="button"
-            onClick={() => setFormData({ ...formData, splitType: 'equal' })}
+            onClick={() => setFormData({ ...formData, splitType: 'equal', splits: {} })}
             className={cn(
               'p-4 rounded-lg border-2 transition-all',
               formData.splitType === 'equal'
-                ? 'border-[#3cc9bb] bg-[#3cc9bb]/5'
+                ? 'border-[#00CFFF] bg-[#00CFFF]/5'
                 : 'border-gray-200 hover:border-gray-300'
             )}
           >
@@ -538,11 +544,11 @@ function Step3SplitConfig({ formData, setFormData, group, errors }: any) {
 
           <button
             type="button"
-            onClick={() => setFormData({ ...formData, splitType: 'percentage' })}
+            onClick={() => setFormData({ ...formData, splitType: 'percentage', splits: {} })}
             className={cn(
               'p-4 rounded-lg border-2 transition-all',
               formData.splitType === 'percentage'
-                ? 'border-[#3cc9bb] bg-[#3cc9bb]/5'
+                ? 'border-[#00CFFF] bg-[#00CFFF]/5'
                 : 'border-gray-200 hover:border-gray-300'
             )}
           >
@@ -553,15 +559,15 @@ function Step3SplitConfig({ formData, setFormData, group, errors }: any) {
 
           <button
             type="button"
-            onClick={() => setFormData({ ...formData, splitType: 'exact' })}
+            onClick={() => setFormData({ ...formData, splitType: 'exact', splits: {} })}
             className={cn(
               'p-4 rounded-lg border-2 transition-all',
               formData.splitType === 'exact'
-                ? 'border-[#3cc9bb] bg-[#3cc9bb]/5'
+                ? 'border-[#00CFFF] bg-[#00CFFF]/5'
                 : 'border-gray-200 hover:border-gray-300'
             )}
           >
-            <div className="text-2xl mb-2">$</div>
+            <div className="text-2xl mb-2">{currencySymbol}</div>
             <div className="font-medium text-[#333333]">Exact</div>
             <div className="text-xs text-[#666666]">Exact amounts</div>
           </button>
@@ -581,7 +587,7 @@ function Step3SplitConfig({ formData, setFormData, group, errors }: any) {
               return (
                 <div key={userId} className="flex justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#3cc9bb] to-[#35b3a7] flex items-center justify-center text-white text-xs font-semibold">
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#00CFFF] to-[#00B8E6] flex items-center justify-center text-white text-xs font-semibold">
                       {getUserName(userId).charAt(0)}
                     </div>
                     <span className="font-medium text-[#333333]">{getUserName(userId)}</span>
@@ -600,7 +606,7 @@ function Step3SplitConfig({ formData, setFormData, group, errors }: any) {
               const amountCents = Math.round(parseFloat(formData.amount || '0') * 100 * percentage / 100);
               return (
                 <div key={userId} className="flex items-center gap-3">
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#3cc9bb] to-[#35b3a7] flex items-center justify-center text-white text-xs font-semibold">
+                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#00CFFF] to-[#00B8E6] flex items-center justify-center text-white text-xs font-semibold">
                     {getUserName(userId).charAt(0)}
                   </div>
                   <span className="flex-1 font-medium text-[#333333]">{getUserName(userId)}</span>
@@ -609,7 +615,7 @@ function Step3SplitConfig({ formData, setFormData, group, errors }: any) {
                     min="0"
                     max="100"
                     step="0.01"
-                    className="w-20 px-3 py-2 rounded-lg border-2 border-gray-300 focus:border-[#3cc9bb] text-right"
+                    className="w-20 px-3 py-2 rounded-lg border-2 border-gray-300 focus:border-[#00CFFF] text-right"
                     value={percentage}
                     onChange={(e) => handlePercentageChange(userId, e.target.value)}
                   />
@@ -636,17 +642,17 @@ function Step3SplitConfig({ formData, setFormData, group, errors }: any) {
               const amountCents = (formData.splits[userId] as number) || 0;
               return (
                 <div key={userId} className="flex items-center gap-3">
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#3cc9bb] to-[#35b3a7] flex items-center justify-center text-white text-xs font-semibold">
+                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#00CFFF] to-[#00B8E6] flex items-center justify-center text-white text-xs font-semibold">
                     {getUserName(userId).charAt(0)}
                   </div>
                   <span className="flex-1 font-medium text-[#333333]">{getUserName(userId)}</span>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{currencySymbol}</span>
                     <input
                       type="number"
                       min="0"
                       step="0.01"
-                      className="w-32 pl-7 pr-3 py-2 rounded-lg border-2 border-gray-300 focus:border-[#3cc9bb] text-right font-mono"
+                      className="w-32 pl-7 pr-3 py-2 rounded-lg border-2 border-gray-300 focus:border-[#00CFFF] text-right font-mono"
                       value={(amountCents / 100).toFixed(2)}
                       onChange={(e) => handleExactChange(userId, e.target.value)}
                     />

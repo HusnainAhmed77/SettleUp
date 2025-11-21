@@ -139,12 +139,13 @@ export function computeShares(
 }
 
 /**
- * Build ledger matrix from expenses
+ * Build ledger matrix from expenses and apply settlements
  * ledger[debtor][creditor] = amount debtor owes to creditor
  */
 export function buildLedger(
   expenses: Expense[],
-  userIds: string[]
+  userIds: string[],
+  settlements?: Array<{ fromUserId: string; toUserId: string; amountCents: number }>
 ): Map<string, Map<string, number>> {
   const ledger = new Map<string, Map<string, number>>();
   
@@ -210,6 +211,47 @@ export function buildLedger(
       });
     }
   });
+  
+  // Apply settlements to reduce the ledger
+  if (settlements && settlements.length > 0) {
+    settlements.forEach(settlement => {
+      const fromUser = settlement.fromUserId;
+      const toUser = settlement.toUserId;
+      let remainingPayment = settlement.amountCents;
+      
+      // Reduce direct debt first (fromUser owes toUser)
+      const directDebt = ledger.get(fromUser)?.get(toUser) || 0;
+      if (directDebt > 0) {
+        const reduction = Math.min(directDebt, remainingPayment);
+        ledger.get(fromUser)!.set(toUser, directDebt - reduction);
+        remainingPayment -= reduction;
+      }
+      
+      // If payment exceeds direct debt, apply to indirect debts
+      // This handles the case where simplified settlements pay through intermediaries
+      if (remainingPayment > 0) {
+        // Find all people that fromUser owes money to
+        const debts: Array<{ userId: string; amount: number }> = [];
+        userIds.forEach(otherId => {
+          const owed = ledger.get(fromUser)?.get(otherId) || 0;
+          if (owed > 0) {
+            debts.push({ userId: otherId, amount: owed });
+          }
+        });
+        
+        // Distribute remaining payment proportionally across all debts
+        const totalDebt = debts.reduce((sum, d) => sum + d.amount, 0);
+        if (totalDebt > 0) {
+          debts.forEach(debt => {
+            const proportion = debt.amount / totalDebt;
+            const reduction = Math.min(debt.amount, Math.round(remainingPayment * proportion));
+            const currentDebt = ledger.get(fromUser)?.get(debt.userId) || 0;
+            ledger.get(fromUser)!.set(debt.userId, currentDebt - reduction);
+          });
+        }
+      }
+    });
+  }
   
   return ledger;
 }
