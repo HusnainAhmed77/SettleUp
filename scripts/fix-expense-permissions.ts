@@ -5,7 +5,7 @@
  * Usage: npx tsx scripts/fix-expense-permissions.ts
  */
 
-import { Client, Databases, Permission, Role, Query } from 'appwrite';
+import { Client, Databases, Permission, Role, Query } from 'node-appwrite';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
