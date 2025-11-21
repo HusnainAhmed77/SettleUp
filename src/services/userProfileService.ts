@@ -63,13 +63,24 @@ export async function createOrUpdateUserProfile(
       // Handle profile picture based on provider
       if (provider === 'google' && profilePictureUrl) {
         // For Google OAuth, store as googleProfilePicture
+        console.log('[UserProfileService] Storing Google profile picture');
         updateData.googleProfilePicture = profilePictureUrl;
-        // Only set as profilePicture if user hasn't uploaded a custom one
-        if (!existingProfile.profilePicture || existingProfile.profilePicture === existingProfile.googleProfilePicture) {
+        
+        // Check if user has a custom picture
+        const hasCustomPicture = existingProfile.profilePicture && 
+                                 existingProfile.profilePicture !== existingProfile.googleProfilePicture;
+        
+        if (hasCustomPicture) {
+          console.log('[UserProfileService] User has custom picture, preserving it');
+          console.log('[UserProfileService] Custom picture:', existingProfile.profilePicture);
+          console.log('[UserProfileService] Google picture will be stored as backup');
+        } else {
+          console.log('[UserProfileService] No custom picture, setting Google picture as active');
           updateData.profilePicture = profilePictureUrl;
         }
       } else if (profilePictureUrl) {
         // For custom uploads, set as profilePicture
+        console.log('[UserProfileService] Storing custom profile picture');
         updateData.profilePicture = profilePictureUrl;
       }
       
@@ -98,9 +109,12 @@ export async function createOrUpdateUserProfile(
       
       // Handle profile picture based on provider
       if (provider === 'google' && profilePictureUrl) {
+        console.log('[UserProfileService] New user with Google profile picture');
         createData.googleProfilePicture = profilePictureUrl;
         createData.profilePicture = profilePictureUrl;
+        console.log('[UserProfileService] Both googleProfilePicture and profilePicture set to:', profilePictureUrl);
       } else if (profilePictureUrl) {
+        console.log('[UserProfileService] New user with custom profile picture');
         createData.profilePicture = profilePictureUrl;
       }
       

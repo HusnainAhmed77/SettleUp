@@ -23,12 +23,13 @@ import { cn } from '@/lib/utils';
 import { dataStore } from '@/lib/store';
 import { getFriends } from '@/services/friendService';
 import { useEffect } from 'react';
+import { useUserProfilePictures } from '@/hooks/useUserProfilePictures';
 
 export const dynamic = 'force-dynamic';
 
 export default function DashboardPage() {
   const { isAuthenticated, user, loading: authLoading } = useAuth();
-  const { groups, loading: jsonLoading } = useGroupsWithJson();
+  const { groups, loading: jsonLoading, refresh: refreshGroups } = useGroupsWithJson();
   const storeLoading = useStoreLoading();
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showAddFriend, setShowAddFriend] = useState(false);
@@ -46,6 +47,20 @@ export default function DashboardPage() {
     }
     return 'USD';
   }, [user]);
+  
+  // Get all unique user IDs from all groups for profile picture fetching
+  const allUserIds = useMemo(() => {
+    const userIds = new Set<string>();
+    groups.forEach(group => {
+      group.members.forEach(member => {
+        userIds.add(member.id);
+      });
+    });
+    return Array.from(userIds);
+  }, [groups]);
+  
+  // Fetch profile pictures for all users
+  const profilePictures = useUserProfilePictures(allUserIds);
   
   // Show loading state while auth or data is loading
   const isLoading = authLoading || (isAuthenticated && storeLoading) || jsonLoading;
@@ -443,7 +458,7 @@ export default function DashboardPage() {
                           className="flex items-center gap-3 p-3 bg-[#00CFFF]/5 rounded-lg hover:bg-[#00CFFF]/10 transition-colors"
                         >
                           <Avatar 
-                            src={friend.profilePicture || friend.googleProfilePicture} 
+                            src={profilePictures[friend.userId] || friend.profilePicture || friend.googleProfilePicture} 
                             alt={friend.name} 
                             initials={friend.name} 
                             size="sm" 
@@ -632,6 +647,7 @@ export default function DashboardPage() {
                           {group.members.map(member => (
                             <Avatar
                               key={member.id}
+                              src={profilePictures[member.id] || member.avatar}
                               alt={member.name}
                               initials={member.name}
                             />
@@ -725,8 +741,12 @@ export default function DashboardPage() {
         {showCreateGroup && (
           <CreateGroupForm
             onClose={() => setShowCreateGroup(false)}
-            onSuccess={() => {
-              // Data will auto-refresh via useGroups hook
+            onSuccess={async () => {
+              // Reload data from Appwrite
+              await dataStore.reload();
+              // Trigger refresh to reload groups data
+              refreshGroups();
+              setShowCreateGroup(false);
             }}
           />
         )}

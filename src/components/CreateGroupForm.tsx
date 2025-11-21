@@ -213,19 +213,19 @@ export default function CreateGroupForm({ onClose, onSuccess }: CreateGroupFormP
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Create New Group</h2>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full my-8">
+        <div className="sticky top-0 bg-white border-b px-4 py-3 flex items-center justify-between rounded-t-lg">
+          <h2 className="text-xl font-bold text-gray-900">Create New Group</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-4 space-y-4 max-h-[calc(90vh-8rem)] overflow-y-auto">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
               {error}
@@ -246,32 +246,32 @@ export default function CreateGroupForm({ onClose, onSuccess }: CreateGroupFormP
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               Description
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Optional description"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
+              rows={2}
             />
           </div>
 
           {/* Friends Selection Section */}
           {friends.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 <div className="flex items-center gap-2">
                   <UserCheck className="w-4 h-4" />
                   <span>Add Friends to Group</span>
                 </div>
               </label>
-              <div className="border border-gray-200 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+              <div className="border border-gray-200 rounded-lg p-2 max-h-32 overflow-y-auto space-y-1">
                 {friends.map((friend) => (
                   <label
                     key={friend.userId}
-                    className="flex items-center gap-3 p-2 rounded hover:bg-gray-50 cursor-pointer transition"
+                    className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50 cursor-pointer transition"
                   >
                     <input
                       type="checkbox"
@@ -279,62 +279,64 @@ export default function CreateGroupForm({ onClose, onSuccess }: CreateGroupFormP
                       onChange={() => toggleFriendSelection(friend.userId)}
                       className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
                     />
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">{friend.name}</div>
-                      <div className="text-xs text-gray-500">{friend.email}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-900 text-sm truncate">{friend.name}</div>
+                      <div className="text-xs text-gray-500 truncate">{friend.email}</div>
                     </div>
                     {selectedFriendIds.includes(friend.userId) && (
-                      <UserCheck className="w-4 h-4 text-teal-600" />
+                      <UserCheck className="w-4 h-4 text-teal-600 flex-shrink-0" />
                     )}
                   </label>
                 ))}
               </div>
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="text-xs text-gray-500 mt-1">
                 {selectedFriendIds.length} friend{selectedFriendIds.length !== 1 ? 's' : ''} selected
               </p>
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4" />
                 <span>Add Members by Name (Optional)</span>
               </div>
             </label>
-            <p className="text-xs text-gray-500 mb-2">
+            <p className="text-xs text-gray-500 mb-1">
               Add members who aren't in your friends list yet
             </p>
-            <div className="flex gap-2 mb-3">
+            <div className="flex gap-2 mb-2">
               <Input
                 type="text"
                 value={currentMemberName}
                 onChange={(e) => setCurrentMemberName(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Enter member name"
+                className="text-sm"
               />
               <Button
                 type="button"
                 onClick={addMember}
                 variant="primary"
                 disabled={!currentMemberName.trim()}
+                size="sm"
               >
                 Add
               </Button>
             </div>
             
             {memberNames.length > 0 && (
-              <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
+              <div className="space-y-1 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2">
                 {memberNames.map((memberName) => (
                   <div
                     key={memberName}
-                    className={`flex items-center justify-between p-2 rounded ${
+                    className={`flex items-center justify-between p-1.5 rounded text-sm ${
                       memberName === 'You' ? 'bg-teal-50 border border-teal-200' : 'bg-gray-50'
                     }`}
                   >
                     <span className={`font-medium ${memberName === 'You' ? 'text-teal-700' : 'text-gray-900'}`}>
                       {memberName}
-                      {memberName === 'You' && <span className="text-xs ml-2 text-teal-600">(You)</span>}
+                      {memberName === 'You' && <span className="text-xs ml-1 text-teal-600">(You)</span>}
                     </span>
                     {memberName !== 'You' && (
                       <button
@@ -342,7 +344,7 @@ export default function CreateGroupForm({ onClose, onSuccess }: CreateGroupFormP
                         onClick={() => removeMember(memberName)}
                         className="text-red-500 hover:text-red-700 transition"
                       >
-                        <X className="w-4 h-4" />
+                        <X className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
@@ -350,12 +352,12 @@ export default function CreateGroupForm({ onClose, onSuccess }: CreateGroupFormP
               </div>
             )}
             
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-xs text-gray-500 mt-1">
               {memberNames.length} member{memberNames.length !== 1 ? 's' : ''} added
             </p>
           </div>
 
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-3 pt-2 sticky bottom-0 bg-white border-t -mx-4 px-4 py-3">
             <Button
               type="button"
               variant="outline"

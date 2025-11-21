@@ -13,6 +13,11 @@ export function useGroupsWithJson() {
   const oldGroups = useGroups();
   const [syncedGroups, setSyncedGroups] = useState<Group[]>(oldGroups);
   const [loading, setLoading] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const refresh = () => {
+    setRefreshTrigger(prev => prev + 1);
+  };
 
   useEffect(() => {
     const syncGroupsWithJson = async () => {
@@ -70,7 +75,7 @@ export function useGroupsWithJson() {
     };
 
     syncGroupsWithJson();
-  }, [oldGroups]);
+  }, [oldGroups, refreshTrigger]);
 
-  return { groups: syncedGroups, loading };
+  return { groups: syncedGroups, loading, refresh };
 }

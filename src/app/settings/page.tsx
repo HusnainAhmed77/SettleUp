@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { account, storage } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 import { Check, AlertCircle } from 'lucide-react';
+import { updateUserProfilePicture } from '@/services/userProfileService';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,14 +33,31 @@ export default function SettingsPage() {
 
   // Load user data
   useEffect(() => {
-    if (user) {
-      setName(user.name || '');
-      setEmail(user.email || '');
-      // Load currency and profile picture from preferences
-      const prefs = user.prefs as any;
-      setCurrency(prefs?.currency || 'USD');
-      setProfilePicture(prefs?.profilePicture || '');
+    async function loadUserData() {
+      if (user) {
+        setName(user.name || '');
+        setEmail(user.email || '');
+        // Load currency from preferences
+        const prefs = user.prefs as any;
+        setCurrency(prefs?.currency || 'USD');
+        
+        // Load profile picture from database (not from prefs)
+        try {
+          const { getUserProfile } = await import('@/services/userProfileService');
+          const userProfile = await getUserProfile(user.$id);
+          if (userProfile) {
+            const pictureUrl = userProfile.profilePicture || userProfile.googleProfilePicture || '';
+            setProfilePicture(pictureUrl);
+          }
+        } catch (error) {
+          console.error('Error loading profile picture:', error);
+          // Fallback to prefs if database fetch fails
+          setProfilePicture(prefs?.profilePicture || '');
+        }
+      }
     }
+    
+    loadUserData();
   }, [user]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -104,6 +122,24 @@ export default function SettingsPage() {
       
       // Update preferences (currency and profile picture)
       await account.updatePrefs(newPrefs);
+
+      // Also update the profile picture in the database
+      if (profilePicture) {
+        console.log('[Settings] Updating profile picture in database:', profilePicture);
+        console.log('[Settings] User ID:', user.$id);
+        try {
+          await updateUserProfilePicture(user.$id, profilePicture);
+          console.log('[Settings] ✅ Profile picture updated in database successfully');
+        } catch (dbError: any) {
+          console.error('[Settings] ❌ Failed to update profile picture in database:', dbError);
+          setMessage({ 
+            type: 'error', 
+            text: `Settings saved to preferences, but failed to update profile picture in database: ${dbError.message || 'Unknown error'}. Please check console for details.` 
+          });
+          setSaving(false);
+          return; // Don't reload if there was an error
+        }
+      }
 
       setMessage({ type: 'success', text: 'Settings saved successfully!' });
       

@@ -28,6 +28,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { useAuth } from '@/contexts/AuthContext';
 import { useExpenseOperations } from '@/hooks/useExpenseOperations';
 import { groupComputationService } from '@/services/groupComputationService';
+import { useUserProfilePictures } from '@/hooks/useUserProfilePictures';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,6 +81,15 @@ function GroupDetailPageContent({
   
   const userCurrency = useCurrency();
   const { user } = useAuth();
+  
+  // Get all unique user IDs from group members for profile picture fetching
+  const allUserIds = useMemo(() => {
+    if (!group) return [];
+    return group.members.map(member => member.id);
+  }, [group]);
+  
+  // Fetch profile pictures for all users
+  const profilePictures = useUserProfilePictures(allUserIds);
   
   // Use expense operations hook
   const { recordSettlement } = useExpenseOperations({
@@ -320,7 +330,12 @@ function GroupDetailPageContent({
                                 : 'bg-white border-gray-200 hover:border-gray-300'
                             }`}
                           >
-                            <Avatar alt={fromUser?.name} initials={fromUser?.name} size="lg" />
+                            <Avatar 
+                              src={profilePictures[settlement.from] || fromUser?.avatar} 
+                              alt={fromUser?.name} 
+                              initials={fromUser?.name} 
+                              size="lg" 
+                            />
                             <div className="flex-1">
                               <p className="font-semibold text-[#333333] text-lg mb-1">
                                 {fromUser?.name}
@@ -334,7 +349,12 @@ function GroupDetailPageContent({
                               </p>
                             </div>
                             <ArrowRight className="w-8 h-8 text-[#FF007F]" />
-                            <Avatar alt={toUser?.name} initials={toUser?.name} size="lg" />
+                            <Avatar 
+                              src={profilePictures[settlement.to] || toUser?.avatar} 
+                              alt={toUser?.name} 
+                              initials={toUser?.name} 
+                              size="lg" 
+                            />
                             <div className="flex flex-col gap-2">
                               {isMySettlement && (
                                 <Button 
@@ -513,7 +533,12 @@ function GroupDetailPageContent({
                           className="border-2 border-gray-200 bg-white rounded-xl p-4 transition-all duration-300 hover:shadow-md"
                         >
                           <div className="flex items-center gap-3 mb-3">
-                            <Avatar alt={member.name} initials={member.name} size="lg" />
+                            <Avatar 
+                              src={profilePictures[member.id] || member.avatar} 
+                              alt={member.name} 
+                              initials={member.name} 
+                              size="lg" 
+                            />
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
                                 <p className="font-semibold text-[#333333] text-lg">
@@ -590,7 +615,12 @@ function GroupDetailPageContent({
                             }`}
                           >
                             <div className="flex items-center gap-3">
-                              <Avatar alt={member.name} initials={member.name} size="md" />
+                              <Avatar 
+                                src={profilePictures[member.id] || member.avatar} 
+                                alt={member.name} 
+                                initials={member.name} 
+                                size="md" 
+                              />
                               <span className="font-semibold text-[#333333]">{member.name}</span>
                             </div>
                             <div className="text-right">

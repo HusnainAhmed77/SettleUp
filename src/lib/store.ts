@@ -165,6 +165,34 @@ class DataStore {
     }
   }
 
+  // Reload data from Appwrite (force refresh)
+  async reload() {
+    if (!this.userId) {
+      console.warn('Cannot reload: no user ID set');
+      return;
+    }
+    
+    this.isLoading = true;
+    this.notify();
+
+    try {
+      // Reload groups and expenses from Appwrite
+      const groups = await dataService.getUserGroups(this.userId);
+      this.groups = groups;
+      
+      // Reload upcoming expenses
+      const upcoming = await dataService.getUserUpcomingExpenses(this.userId);
+      this.upcomingExpenses = upcoming;
+      
+      this.isLoading = false;
+      this.notify();
+    } catch (error) {
+      console.error('Failed to reload data from Appwrite:', error);
+      this.isLoading = false;
+      this.notify();
+    }
+  }
+
   // Generate unique ID
   private generateId(): string {
     return `${Date.now()}-${this.idCounter++}`;

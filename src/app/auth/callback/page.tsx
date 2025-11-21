@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { handleOAuthCallback } from '@/services/authService';
 import { createOrUpdateUserProfile } from '@/services/userProfileService';
+import { importGoogleProfilePictureFromUrl } from '@/services/profileService';
 import { dataStore } from '@/lib/store';
 import { account } from '@/lib/appwrite';
 
@@ -20,6 +21,7 @@ export default function OAuthCallbackPage() {
         const user = await handleOAuthCallback();
         
         console.log('✅ User authenticated:', user.email);
+        console.log('📋 User object:', user);
         
         // Determine provider from sessions
         let provider = 'google';
@@ -33,13 +35,61 @@ export default function OAuthCallbackPage() {
           console.log('Could not check sessions:', error);
         }
         
+        // Extract profile picture URL from OAuth response
+        let profilePictureUrl: string | undefined;
+        let googlePictureStorageUrl: string | undefined;
+        
+        if (provider === 'google') {
+          console.log('🔍 Extracting Google profile picture...');
+          console.log('📋 User prefs:', user.prefs);
+          
+          // Check various possible locations for the profile picture URL
+          // Cast to any since Appwrite's Preferences type doesn't include OAuth fields
+          const prefs = user.prefs as any;
+          
+          if (prefs && prefs.picture) {
+            profilePictureUrl = prefs.picture;
+            console.log('✓ Found picture in user.prefs.picture:', profilePictureUrl);
+          } else if (prefs && prefs.avatar) {
+            profilePictureUrl = prefs.avatar;
+            console.log('✓ Found picture in user.prefs.avatar:', profilePictureUrl);
+          } else if (prefs && prefs.photoURL) {
+            profilePictureUrl = prefs.photoURL;
+            console.log('✓ Found picture in user.prefs.photoURL:', profilePictureUrl);
+          } else {
+            console.log('ℹ️ No profile picture URL found in OAuth response');
+          }
+          
+          // If we found a picture URL, download and upload it to Appwrite storage
+          if (profilePictureUrl) {
+            try {
+              console.log('📥 Importing Google profile picture to Appwrite storage...');
+              const storageUrl = await importGoogleProfilePictureFromUrl(
+                user.$id,
+                profilePictureUrl
+              );
+              
+              if (storageUrl) {
+                googlePictureStorageUrl = storageUrl;
+                console.log('✅ Google profile picture imported successfully:', googlePictureStorageUrl);
+              } else {
+                console.log('⚠️ Failed to import Google profile picture (graceful failure)');
+              }
+            } catch (error) {
+              console.error('⚠️ Error importing Google profile picture:', error);
+              console.log('ℹ️ Continuing with authentication despite picture import failure');
+              // Continue with authentication - picture import is not critical
+            }
+          }
+        }
+        
         // Create or update user profile in database
         await createOrUpdateUserProfile(
           user.$id,
           user.email,
           user.name,
           provider,
-          undefined
+          googlePictureStorageUrl
         );
         
         // Initialize data store with user's data

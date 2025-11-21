@@ -211,9 +211,105 @@ export async function getProfilePicture(userId: string): Promise<string | null> 
 }
 
 /**
- * Import Google profile picture on signup
+ * Import Google profile picture from URL by downloading and storing in Appwrite
  * @param userId - ID of the user
  * @param googlePictureUrl - URL of the Google profile picture
+ * @returns Appwrite storage URL on success, null on failure
+ */
+export async function importGoogleProfilePictureFromUrl(
+  userId: string,
+  googlePictureUrl: string
+): Promise<string | null> {
+  try {
+    console.log('[ProfileService] Starting Google profile picture import');
+    console.log('[ProfileService] User ID:', userId);
+    console.log('[ProfileService] Google picture URL:', googlePictureUrl);
+
+    // Validate URL is from trusted domains
+    const trustedDomains = ['googleusercontent.com', 'google.com', 'gstatic.com'];
+    const urlObj = new URL(googlePictureUrl);
+    const isTrusted = trustedDomains.some(domain => urlObj.hostname.includes(domain));
+    
+    if (!isTrusted) {
+      console.warn('[ProfileService] Picture URL is not from trusted domain:', urlObj.hostname);
+      return null;
+    }
+
+    // Download image from Google URL
+    console.log('[ProfileService] Downloading image from Google...');
+    const response = await fetch(googlePictureUrl);
+    
+    if (!response.ok) {
+      console.error('[ProfileService] Failed to download image:', response.status, response.statusText);
+      return null;
+    }
+
+    // Convert to blob
+    const blob = await response.blob();
+    console.log('[ProfileService] Downloaded blob size:', blob.size, 'bytes');
+    console.log('[ProfileService] Downloaded blob type:', blob.type);
+
+    // Validate file size (max 5MB)
+    if (blob.size > MAX_FILE_SIZE) {
+      console.error('[ProfileService] Downloaded image exceeds size limit:', blob.size);
+      return null;
+    }
+
+    // Validate content type
+    if (!blob.type.startsWith('image/')) {
+      console.error('[ProfileService] Downloaded content is not an image:', blob.type);
+      return null;
+    }
+
+    // Create File object with appropriate name and type
+    const timestamp = Date.now();
+    const extension = blob.type.split('/')[1] || 'jpg';
+    const fileName = `google-profile-${userId}-${timestamp}.${extension}`;
+    const file = new File([blob], fileName, {
+      type: blob.type || 'image/jpeg'
+    });
+
+    console.log('[ProfileService] Created file:', fileName);
+
+    // Upload to Appwrite storage
+    console.log('[ProfileService] Uploading to Appwrite storage...');
+    const fileId = ID.unique();
+    const uploadedFile = await storage.createFile(
+      STORAGE_BUCKETS.PROFILE_PICTURES,
+      fileId,
+      file
+    );
+
+    console.log('[ProfileService] Upload successful, file ID:', uploadedFile.$id);
+
+    // Get file URL
+    const fileUrl = storage.getFileView(
+      STORAGE_BUCKETS.PROFILE_PICTURES,
+      uploadedFile.$id
+    );
+
+    const storageUrl = fileUrl.toString();
+    console.log('[ProfileService] Appwrite storage URL:', storageUrl);
+
+    return storageUrl;
+  } catch (error: any) {
+    console.error('[ProfileService] Error importing Google profile picture:', error);
+    console.error('[ProfileService] Error details:', {
+      message: error.message,
+      name: error.name,
+      userId,
+      googlePictureUrl
+    });
+    // Return null on any error - graceful failure
+    return null;
+  }
+}
+
+/**
+ * Import Google profile picture on signup (legacy - stores URL directly)
+ * @param userId - ID of the user
+ * @param googlePictureUrl - URL of the Google profile picture
+ * @deprecated Use importGoogleProfilePictureFromUrl instead
  */
 export async function importGoogleProfilePicture(
   userId: string,

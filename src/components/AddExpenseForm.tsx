@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { X, DollarSign, Users, Calculator } from 'lucide-react';
 import Button from './ui/Button';
 import Input, { CurrencyInput } from './ui/Input';
@@ -11,6 +11,7 @@ import { SplitType, parseToCents, formatCents } from '@/lib/split';
 import { dataStore } from '@/lib/store';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useCurrencySymbol } from '@/hooks/useCurrencySymbol';
+import { useUserProfilePictures } from '@/hooks/useUserProfilePictures';
 
 interface AddExpenseFormProps {
   groupId: string;
@@ -23,6 +24,11 @@ interface AddExpenseFormProps {
 export default function AddExpenseForm({ groupId, members, onClose, onSuccess, useJsonSystem = false }: AddExpenseFormProps) {
   const userCurrency = useCurrency();
   const currencySymbol = useCurrencySymbol();
+  
+  // Fetch profile pictures for all members
+  const memberIds = useMemo(() => members.map(m => m.id), [members]);
+  const profilePictures = useUserProfilePictures(memberIds);
+  
   const [step, setStep] = useState(1);
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
@@ -240,7 +246,7 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess, u
                           onChange={() => setPayerId(member.id)}
                           className="w-4 h-4 text-teal-600"
                         />
-                        <Avatar alt={member.name} initials={member.name} size="sm" />
+                        <Avatar src={profilePictures[member.id] || member.avatar} alt={member.name} initials={member.name} size="sm" />
                         <span className="font-medium">{member.name}</span>
                       </label>
                     ))}
@@ -251,7 +257,7 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess, u
                     <p className="text-sm text-gray-600 mb-3">Enter how much each person paid:</p>
                     {members.map(member => (
                       <div key={member.id} className="flex items-center gap-3 p-3 rounded-lg border-2 border-gray-200">
-                        <Avatar alt={member.name} initials={member.name} size="sm" />
+                        <Avatar src={profilePictures[member.id] || member.avatar} alt={member.name} initials={member.name} size="sm" />
                         <span className="flex-1 font-medium">{member.name}</span>
                         <span className="text-gray-600">{currencySymbol}</span>
                         <input
@@ -334,7 +340,7 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess, u
                         onChange={() => toggleParticipant(member.id)}
                         className="w-4 h-4 text-teal-600 rounded"
                       />
-                      <Avatar alt={member.name} initials={member.name} size="sm" />
+                      <Avatar src={profilePictures[member.id] || member.avatar} alt={member.name} initials={member.name} size="sm" />
                       <span className="font-medium">{member.name}</span>
                     </label>
                   ))}
@@ -419,7 +425,7 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess, u
                       const member = members.find(m => m.id === id);
                       return (
                         <div key={id} className="flex items-center gap-3">
-                          <Avatar alt={member?.name} initials={member?.name} size="sm" />
+                          <Avatar src={profilePictures[id] || member?.avatar} alt={member?.name} initials={member?.name} size="sm" />
                           <span className="flex-1 font-medium">{member?.name}</span>
                           <input
                             type="number"
@@ -452,7 +458,7 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess, u
                       const member = members.find(m => m.id === id);
                       return (
                         <div key={id} className="flex items-center gap-3">
-                          <Avatar alt={member?.name} initials={member?.name} size="sm" />
+                          <Avatar src={profilePictures[id] || member?.avatar} alt={member?.name} initials={member?.name} size="sm" />
                           <span className="flex-1 font-medium">{member?.name}</span>
                           <span className="text-gray-600">{currencySymbol}</span>
                           <input
