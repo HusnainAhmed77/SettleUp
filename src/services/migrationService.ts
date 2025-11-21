@@ -16,10 +16,10 @@ export interface MigrationData {
 export function checkForLocalData(): MigrationData {
   const groups = dataStore.getGroups();
   const upcomingExpenses = dataStore.getUpcomingExpenses();
-  
+
   // Count expenses across all groups
   const expenseCount = groups.reduce((total, group) => total + group.expenses.length, 0);
-  
+
   return {
     hasLocalData: groups.length > 0 || upcomingExpenses.length > 0,
     groupCount: groups.length,
@@ -33,20 +33,20 @@ export function checkForLocalData(): MigrationData {
 export async function migrateLocalData(userId: string): Promise<void> {
   try {
     const groups = dataStore.getGroups();
-    
+
     // Map old group IDs to new Appwrite IDs
     const groupIdMap: { [oldId: string]: string } = {};
-    
+
     // Migrate groups
     for (const group of groups) {
       const newGroup = await createGroup(userId, {
         name: group.name,
         description: group.description || '',
-        members: group.members.map(m => m.id),
+        members: group.members,
       });
-      
+
       groupIdMap[group.id] = newGroup.$id;
-      
+
       // Migrate expenses for this group
       for (const expense of group.expenses) {
         await createExpense(userId, {
@@ -60,7 +60,7 @@ export async function migrateLocalData(userId: string): Promise<void> {
         });
       }
     }
-    
+
     // Clear local storage after successful migration
     clearLocalData();
   } catch (error) {

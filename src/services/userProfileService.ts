@@ -15,6 +15,9 @@ export interface UserProfile {
   googleProfilePicture?: string; // Google profile picture URL (optional)
   $createdAt: string; // Appwrite created timestamp (automatic)
   $updatedAt: string; // Appwrite updated timestamp (automatic)
+  lastLoginAt: string; // Last login timestamp
+  friendId?: string[]; // Array of friend user IDs
+  friendNames?: string[]; // Array of friend names
 }
 
 /**
@@ -35,7 +38,7 @@ export async function createOrUpdateUserProfile(
     console.log('[UserProfileService] name:', name);
     console.log('[UserProfileService] provider:', provider);
     console.log('[UserProfileService] profilePictureUrl:', profilePictureUrl);
-    
+
     // Check if profile already exists
     const existing = await databases.listDocuments(
       APP_DATABASE_ID,
@@ -50,26 +53,26 @@ export async function createOrUpdateUserProfile(
     if (existing.documents.length > 0) {
       // Update existing profile
       console.log('[UserProfileService] Updating existing profile:', existing.documents[0].$id);
-      
+
       const existingProfile = existing.documents[0] as unknown as UserProfile;
-      
+
       // Prepare update data - only update fields that are provided
       const updateData: Record<string, any> = {
         email,
         name,
         provider,
       };
-      
+
       // Handle profile picture based on provider
       if (provider === 'google' && profilePictureUrl) {
         // For Google OAuth, store as googleProfilePicture
         console.log('[UserProfileService] Storing Google profile picture');
         updateData.googleProfilePicture = profilePictureUrl;
-        
+
         // Check if user has a custom picture
-        const hasCustomPicture = existingProfile.profilePicture && 
-                                 existingProfile.profilePicture !== existingProfile.googleProfilePicture;
-        
+        const hasCustomPicture = existingProfile.profilePicture &&
+          existingProfile.profilePicture !== existingProfile.googleProfilePicture;
+
         if (hasCustomPicture) {
           console.log('[UserProfileService] User has custom picture, preserving it');
           console.log('[UserProfileService] Custom picture:', existingProfile.profilePicture);
@@ -83,22 +86,22 @@ export async function createOrUpdateUserProfile(
         console.log('[UserProfileService] Storing custom profile picture');
         updateData.profilePicture = profilePictureUrl;
       }
-      
+
       console.log('[UserProfileService] Update data:', updateData);
-      
+
       const updated = await databases.updateDocument(
         APP_DATABASE_ID,
         APP_COLLECTIONS.USER_PROFILES,
         existing.documents[0].$id,
         updateData
       );
-      
+
       console.log('[UserProfileService] Profile updated successfully');
       return updated as unknown as UserProfile;
     } else {
       // Create new profile
       console.log('[UserProfileService] Creating new profile');
-      
+
       // Prepare create data with all required fields
       const createData: Record<string, any> = {
         userId,
@@ -106,7 +109,7 @@ export async function createOrUpdateUserProfile(
         name,
         provider,
       };
-      
+
       // Handle profile picture based on provider
       if (provider === 'google' && profilePictureUrl) {
         console.log('[UserProfileService] New user with Google profile picture');
@@ -117,18 +120,18 @@ export async function createOrUpdateUserProfile(
         console.log('[UserProfileService] New user with custom profile picture');
         createData.profilePicture = profilePictureUrl;
       }
-      
+
       console.log('[UserProfileService] Create data:', createData);
       console.log('[UserProfileService] Database ID:', APP_DATABASE_ID);
       console.log('[UserProfileService] Collection ID:', APP_COLLECTIONS.USER_PROFILES);
-      
+
       const created = await databases.createDocument(
         APP_DATABASE_ID,
         APP_COLLECTIONS.USER_PROFILES,
         ID.unique(),
         createData
       );
-      
+
       console.log('[UserProfileService] Profile created successfully:', created.$id);
       console.log('[UserProfileService] Created document:', created);
       return created as unknown as UserProfile;
@@ -145,7 +148,7 @@ export async function createOrUpdateUserProfile(
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
   try {
     console.log('[UserProfileService] Getting profile for userId:', userId);
-    
+
     const result = await databases.listDocuments(
       APP_DATABASE_ID,
       APP_COLLECTIONS.USER_PROFILES,
@@ -190,7 +193,7 @@ export async function updateUserProfilePicture(
   try {
     console.log('[UserProfileService] Updating profile picture for userId:', userId);
     console.log('[UserProfileService] New picture URL:', profilePictureUrl);
-    
+
     const existing = await databases.listDocuments(
       APP_DATABASE_ID,
       APP_COLLECTIONS.USER_PROFILES,

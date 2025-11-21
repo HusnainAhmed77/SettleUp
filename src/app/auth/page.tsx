@@ -8,7 +8,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 
-export default function AuthPage() {
+import { Suspense } from 'react';
+
+function AuthContent() {
   const searchParams = useSearchParams();
   const mode = searchParams.get('mode');
   const [isSignUp, setIsSignUp] = useState(mode !== 'signin');
@@ -21,7 +23,7 @@ export default function AuthPage() {
   useEffect(() => {
     // Update state when URL changes
     setIsSignUp(mode !== 'signin');
-    
+
     // Check for OAuth error in URL
     const oauthError = searchParams.get('error');
     if (oauthError === 'oauth_failed') {
@@ -143,7 +145,7 @@ export default function AuthPage() {
                   {/* Decorative Circles */}
                   <div className="absolute top-10 left-10 w-32 h-32 bg-white/10 rounded-full" />
                   <div className="absolute bottom-20 right-10 w-40 h-40 bg-white/10 rounded-full" />
-                  
+
                   <div className="relative z-10 text-center">
                     <h2 className="text-4xl font-bold mb-4">Hello, Friend!</h2>
                     <p className="text-white/90 mb-8 text-lg">
@@ -171,10 +173,10 @@ export default function AuthPage() {
                     <h2 className="text-4xl font-bold text-[#FF007F] mb-2 text-center">
                       Create Account
                     </h2>
-                    
+
                     {/* Social Login */}
                     <div className="flex justify-center gap-4 my-6">
-                      <button 
+                      <button
                         type="button"
                         onClick={handleGoogleAuth}
                         disabled={loading}
@@ -202,7 +204,7 @@ export default function AuthPage() {
                           type="text"
                           placeholder="Name"
                           value={signUpData.name}
-                          onChange={(e) => setSignUpData({...signUpData, name: e.target.value})}
+                          onChange={(e) => setSignUpData({ ...signUpData, name: e.target.value })}
                           className="w-full pl-12 pr-4 py-3 bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF007F]"
                           required
                           disabled={loading}
@@ -215,7 +217,7 @@ export default function AuthPage() {
                           type="email"
                           placeholder="Email"
                           value={signUpData.email}
-                          onChange={(e) => setSignUpData({...signUpData, email: e.target.value})}
+                          onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })}
                           className="w-full pl-12 pr-4 py-3 bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF007F]"
                           required
                           disabled={loading}
@@ -228,7 +230,7 @@ export default function AuthPage() {
                           type="password"
                           placeholder="Password (min 8 characters)"
                           value={signUpData.password}
-                          onChange={(e) => setSignUpData({...signUpData, password: e.target.value})}
+                          onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })}
                           className="w-full pl-12 pr-4 py-3 bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF007F]"
                           required
                           minLength={8}
@@ -267,10 +269,10 @@ export default function AuthPage() {
                     <h2 className="text-4xl font-bold text-[#FF007F] mb-2 text-center">
                       Sign In
                     </h2>
-                    
+
                     {/* Social Login */}
                     <div className="flex justify-center gap-4 my-6">
-                      <button 
+                      <button
                         type="button"
                         onClick={handleGoogleAuth}
                         disabled={loading}
@@ -298,7 +300,7 @@ export default function AuthPage() {
                           type="email"
                           placeholder="Email"
                           value={signInData.email}
-                          onChange={(e) => setSignInData({...signInData, email: e.target.value})}
+                          onChange={(e) => setSignInData({ ...signInData, email: e.target.value })}
                           className="w-full pl-12 pr-4 py-3 bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF007F]"
                           required
                           disabled={loading}
@@ -311,7 +313,7 @@ export default function AuthPage() {
                           type="password"
                           placeholder="Password"
                           value={signInData.password}
-                          onChange={(e) => setSignInData({...signInData, password: e.target.value})}
+                          onChange={(e) => setSignInData({ ...signInData, password: e.target.value })}
                           className="w-full pl-12 pr-4 py-3 bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF007F]"
                           required
                           disabled={loading}
@@ -345,7 +347,7 @@ export default function AuthPage() {
                   {/* Decorative Circles */}
                   <div className="absolute top-10 right-10 w-32 h-32 bg-white/10 rounded-full" />
                   <div className="absolute bottom-20 left-10 w-40 h-40 bg-white/10 rounded-full" />
-                  
+
                   <div className="relative z-10 text-center">
                     <h2 className="text-4xl font-bold mb-4">Welcome Back!</h2>
                     <p className="text-white/90 mb-8 text-lg">
@@ -366,5 +368,20 @@ export default function AuthPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#FF007F] mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <AuthContent />
+    </Suspense>
   );
 }

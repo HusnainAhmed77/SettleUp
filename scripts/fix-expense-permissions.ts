@@ -5,7 +5,7 @@
  * Usage: npx tsx scripts/fix-expense-permissions.ts
  */
 
-import { Client, Databases, Permission, Role, Query } from 'appwrite';
+import { Client, Databases, Permission, Role, Query } from 'node-appwrite';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
@@ -14,7 +14,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
 const ENDPOINT = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
 const PROJECT_ID = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-const DATABASE_ID = process.env.NEXT_PUBLIC_APP_DATABASE_ID;
+const DATABASE_ID = process.env.NEXT_PUBLIC_APP_DATABASE_ID as string;
 const API_KEY = process.env.APPWRITE_API_KEY;
 
 if (!ENDPOINT || !PROJECT_ID || !DATABASE_ID) {
@@ -49,7 +49,7 @@ const GROUPS_COLLECTION_ID = 'groups';
 async function fixExpensePermissions() {
   try {
     console.log('Fetching all expenses...');
-    
+
     // Get all expenses
     const response = await databases.listDocuments(
       DATABASE_ID,
@@ -62,20 +62,20 @@ async function fixExpensePermissions() {
     // Update each expense
     for (const expense of response.documents) {
       console.log(`Updating expense ${expense.$id}...`);
-      
+
       // Get current permissions
       const currentPermissions = expense.$permissions || [];
-      
+
       // Check if users read permission already exists
       const hasUsersRead = currentPermissions.some((p: string) => p.includes('read("users")'));
-      
+
       if (!hasUsersRead) {
         // Add read permission for all authenticated users
         const newPermissions = [
           Permission.read(Role.users()),
           ...currentPermissions.filter((p: string) => !p.includes('read('))
         ];
-        
+
         await databases.updateDocument(
           DATABASE_ID,
           EXPENSES_COLLECTION_ID,
@@ -83,7 +83,7 @@ async function fixExpensePermissions() {
           {},
           newPermissions
         );
-        
+
         console.log(`✓ Updated expense ${expense.$id}`);
       } else {
         console.log(`- Expense ${expense.$id} already has correct permissions`);
@@ -99,7 +99,7 @@ async function fixExpensePermissions() {
 async function fixGroupPermissions() {
   try {
     console.log('\nFetching all groups...');
-    
+
     // Get all groups
     const response = await databases.listDocuments(
       DATABASE_ID,
@@ -112,20 +112,20 @@ async function fixGroupPermissions() {
     // Update each group
     for (const group of response.documents) {
       console.log(`Updating group ${group.$id}...`);
-      
+
       // Get current permissions
       const currentPermissions = group.$permissions || [];
-      
+
       // Check if users read permission already exists
       const hasUsersRead = currentPermissions.some((p: string) => p.includes('read("users")'));
-      
+
       if (!hasUsersRead) {
         // Add read permission for all authenticated users
         const newPermissions = [
           Permission.read(Role.users()),
           ...currentPermissions.filter((p: string) => !p.includes('read('))
         ];
-        
+
         await databases.updateDocument(
           DATABASE_ID,
           GROUPS_COLLECTION_ID,
@@ -133,7 +133,7 @@ async function fixGroupPermissions() {
           {},
           newPermissions
         );
-        
+
         console.log(`✓ Updated group ${group.$id}`);
       } else {
         console.log(`- Group ${group.$id} already has correct permissions`);

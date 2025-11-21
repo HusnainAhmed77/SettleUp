@@ -42,15 +42,15 @@ export const useGroupsStore = create<GroupsStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const newGroup = await createGroup(userId, data);
-      
+
       // Update member names for autocomplete
-      await addMemberNames(userId, data.members);
-      
+      await addMemberNames(userId, data.members.map(m => m.name));
+
       set(state => ({
         groups: [newGroup, ...state.groups],
         loading: false,
       }));
-      
+
       return newGroup;
     } catch (error) {
       set({ error: 'Failed to create group', loading: false });
@@ -63,7 +63,7 @@ export const useGroupsStore = create<GroupsStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const updatedGroup = await updateGroup(groupId, data);
-      
+
       set(state => ({
         groups: state.groups.map(g => g.$id === groupId ? updatedGroup : g),
         loading: false,
@@ -79,7 +79,7 @@ export const useGroupsStore = create<GroupsStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await deleteGroup(groupId);
-      
+
       set(state => ({
         groups: state.groups.filter(g => g.$id !== groupId),
         loading: false,

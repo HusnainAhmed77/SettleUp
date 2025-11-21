@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { X, UserPlus, Search, Loader2 } from 'lucide-react';
 import { searchUsers, addFriend, areFriends } from '@/services/friendService';
-import { UserProfile } from '@/services/userProfileService';
+import { UserProfile, getUserProfile } from '@/services/userProfileService';
 import ProfilePictureDisplay from './ProfilePictureDisplay';
 
 /**
@@ -69,15 +69,20 @@ export default function AddFriendToListModal({
     try {
       setAdding(user.userId);
       setError('');
-      
+
       const addedFriend = await addFriend(currentUserId, user.userId);
-      
+
       // Update friend status
       setFriendStatuses((prev) => ({ ...prev, [user.userId]: true }));
-      
-      // Notify parent
-      onFriendAdded(addedFriend);
-      
+
+      // Fetch full user profile to satisfy type requirement
+      const friendProfile = await getUserProfile(user.userId);
+
+      if (friendProfile) {
+        // Notify parent
+        onFriendAdded(friendProfile);
+      }
+
       // Clear search and close after a brief delay
       setTimeout(() => {
         setSearchQuery('');
