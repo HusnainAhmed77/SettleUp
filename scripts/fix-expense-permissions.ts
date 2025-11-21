@@ -2,17 +2,47 @@
  * Migration script to fix permissions on existing expenses
  * Run this once to update all existing expenses to allow read access for all authenticated users
  * 
- * Usage: npx ts-node scripts/fix-expense-permissions.ts
+ * Usage: npx tsx scripts/fix-expense-permissions.ts
  */
 
 import { Client, Databases, Permission, Role, Query } from 'appwrite';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// Load environment variables from .env.local
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+
+const ENDPOINT = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
+const PROJECT_ID = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
+const DATABASE_ID = process.env.NEXT_PUBLIC_APP_DATABASE_ID;
+const API_KEY = process.env.APPWRITE_API_KEY;
+
+if (!ENDPOINT || !PROJECT_ID || !DATABASE_ID) {
+  console.error('❌ Missing required environment variables!');
+  console.error('Make sure .env.local has:');
+  console.error('  - NEXT_PUBLIC_APPWRITE_ENDPOINT');
+  console.error('  - NEXT_PUBLIC_APPWRITE_PROJECT_ID');
+  console.error('  - NEXT_PUBLIC_APP_DATABASE_ID');
+  console.error('  - APPWRITE_API_KEY (get this from Appwrite Console → Settings → API Keys)');
+  process.exit(1);
+}
 
 const client = new Client()
-  .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
-  .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!);
+  .setEndpoint(ENDPOINT)
+  .setProject(PROJECT_ID);
+
+// Use API key if available (for admin operations)
+if (API_KEY) {
+  client.setKey(API_KEY);
+  console.log('✓ Using API key for admin access\n');
+} else {
+  console.warn('⚠️  No API key found. This script requires admin access.');
+  console.warn('   Create an API key in Appwrite Console → Settings → API Keys');
+  console.warn('   Add it to .env.local as APPWRITE_API_KEY=your_key_here\n');
+  process.exit(1);
+}
 
 const databases = new Databases(client);
-const DATABASE_ID = process.env.NEXT_PUBLIC_APP_DATABASE_ID!;
 const EXPENSES_COLLECTION_ID = 'expenses';
 const GROUPS_COLLECTION_ID = 'groups';
 

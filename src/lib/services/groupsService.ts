@@ -9,6 +9,7 @@ export interface Group {
   description: string;
   members: string[];
   sharedWith?: string[]; // Array of user IDs who have access to this group
+  currency?: string; // Group currency (e.g., "USD", "EUR")
 }
 
 export interface CreateGroupData {
@@ -51,6 +52,7 @@ export async function getUserGroups(userId: string): Promise<Group[]> {
       description: doc.description,
       members: JSON.parse(doc.members || '[]'),
       sharedWith: doc.sharedWith || [], // Already an array from Appwrite
+      currency: doc.currency || 'USD', // Include currency with default
     }));
   } catch (error) {
     console.error('Error fetching user groups:', error);
@@ -68,7 +70,10 @@ export async function getUserGroups(userId: string): Promise<Group[]> {
 export async function createGroup(
   userId: string,
   data: CreateGroupData,
-  sharedWithUserIds: string[] = []
+  sharedWithUserIds: string[] = [],
+  creatorName: string = '',
+  creatorEmail: string = '',
+  currency: string = 'USD'
 ): Promise<Group> {
   try {
     const groupData = {
@@ -77,6 +82,10 @@ export async function createGroup(
       description: data.description,
       members: JSON.stringify(data.members), // Stringify members array
       sharedWith: sharedWithUserIds, // Initialize with provided user IDs (Appwrite array type)
+      creatorName, // Add creator name for readability
+      creatorEmail, // Add creator email for readability
+      adminUserId: userId, // Explicit admin field (same as userId initially)
+      currency, // Add currency field
     };
 
     // Set permissions: all authenticated users can read, only creator can update/delete
@@ -101,6 +110,7 @@ export async function createGroup(
       description: response.description,
       members: JSON.parse(response.members || '[]'),
       sharedWith: response.sharedWith || [], // Already an array from Appwrite
+      currency: response.currency || 'USD', // Include currency with default
     };
   } catch (error) {
     console.error('Error creating group:', error);
@@ -142,6 +152,7 @@ export async function updateGroup(
       description: response.description,
       members: JSON.parse(response.members || '[]'),
       sharedWith: response.sharedWith || [], // Already an array from Appwrite
+      currency: response.currency || 'USD', // Include currency with default
     };
   } catch (error) {
     console.error('Error updating group:', error);
@@ -186,6 +197,7 @@ export async function getGroup(groupId: string): Promise<Group> {
       description: response.description,
       members: JSON.parse(response.members || '[]'),
       sharedWith: response.sharedWith || [], // Already an array from Appwrite
+      currency: response.currency || 'USD', // Include currency with default
     };
   } catch (error) {
     console.error('Error fetching group:', error);
@@ -230,6 +242,7 @@ export async function addFriendToGroup(
       description: response.description,
       members: JSON.parse(response.members || '[]'),
       sharedWith: response.sharedWith || [], // Already an array from Appwrite
+      currency: response.currency || 'USD', // Include currency with default
     };
   } catch (error) {
     console.error('Error adding friend to group:', error);
@@ -271,6 +284,7 @@ export async function removeFriendFromGroup(
       description: response.description,
       members: JSON.parse(response.members || '[]'),
       sharedWith: response.sharedWith || [], // Already an array from Appwrite
+      currency: response.currency || 'USD', // Include currency with default
     };
   } catch (error) {
     console.error('Error removing friend from group:', error);
@@ -298,6 +312,7 @@ export async function getCreatedGroups(userId: string): Promise<Group[]> {
       description: doc.description,
       members: JSON.parse(doc.members || '[]'),
       sharedWith: doc.sharedWith || [], // Already an array from Appwrite
+      currency: doc.currency || 'USD', // Include currency with default
     }));
   } catch (error) {
     console.error('Error fetching created groups:', error);
@@ -325,6 +340,7 @@ export async function getSharedGroups(userId: string): Promise<Group[]> {
       description: doc.description,
       members: JSON.parse(doc.members || '[]'),
       sharedWith: doc.sharedWith || [], // Already an array from Appwrite
+      currency: doc.currency || 'USD', // Include currency with default
     }));
   } catch (error) {
     console.error('Error fetching shared groups:', error);

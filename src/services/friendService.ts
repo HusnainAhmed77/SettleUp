@@ -1,14 +1,24 @@
-import { databases, APP_DATABASE_ID, APP_COLLECTIONS, Query } from '@/lib/appwrite';
+import { databases, APP_DATABASE_ID, APP_COLLECTIONS, Query, ID } from '@/lib/appwrite';
 import { FriendError, FriendErrorCode } from '@/types/friends';
 import { UserProfile } from './userProfileService';
 
 /**
  * FriendService - Manages friend connections between users
- * Simplified approach: Store friend IDs and names as array attributes in user_profiles
- * - friendIds: string[] - Array of friend user IDs
- * - friendNames: string[] - Array of friend names (parallel array)
+ * Uses dedicated 'friends' collection to store friend relationships
  * Implements Requirements: 1.1, 1.2, 1.3, 2.2, 2.3, 14.1
  */
+
+export interface Friend {
+  $id: string;
+  userId: string; // User who added the friend
+  friendUserId: string; // The friend's user ID
+  name: string; // Friend's name
+  email: string; // Friend's email
+  status: string; // 'pending', 'accepted', 'blocked'
+  googleProfilePicture?: string;
+  $createdAt: string;
+  $updatedAt: string;
+}
 
 /**
  * Search for users by email or name
@@ -74,16 +84,16 @@ export async function searchUsers(
 }
 
 /**
- * Add a friend by user ID (bidirectional)
+ * Add a friend by user ID (creates entry in BOTH friends collection AND userprofiles)
  * @param userId - ID of the user adding the friend
  * @param friendUserId - ID of the user to be added as friend
- * @returns The friend's user profile
+ * @returns The created friend relationship
  * @throws FriendError if validation fails
  */
 export async function addFriend(
   userId: string,
   friendUserId: string
-): Promise<UserProfile> {
+): Promise<Friend> {
   try {
     // Validate: Cannot add yourself as friend
     if (userId === friendUserId) {
@@ -93,25 +103,24 @@ export async function addFriend(
       );
     }
 
-    // Get current user's profile
-    const currentUserResult = await databases.listDocuments(
+    // Check if friendship already exists
+    const existingFriendship = await databases.listDocuments(
       APP_DATABASE_ID,
-      APP_COLLECTIONS.USER_PROFILES,
-      [Query.equal('userId', userId)]
+      APP_COLLECTIONS.FRIENDS,
+      [
+        Query.equal('userId', userId),
+        Query.equal('friendUserId', friendUserId)
+      ]
     );
 
-    if (currentUserResult.documents.length === 0) {
+    if (existingFriendship.documents.length > 0) {
       throw new FriendError(
-        FriendErrorCode.USER_NOT_FOUND,
-        'Current user profile not found'
+        FriendErrorCode.ALREADY_EXISTS,
+        'This user is already in your friend list'
       );
     }
 
-    const currentUser = currentUserResult.documents[0] as unknown as UserProfile;
-    const currentFriendIds = currentUser.friendIds || [];
-    const currentFriendNames = currentUser.friendNames || [];
-
-    // Check if friend user exists
+    // Get friend's user profile
     const friendResult = await databases.listDocuments(
       APP_DATABASE_ID,
       APP_COLLECTIONS.USER_PROFILES,
@@ -125,41 +134,101 @@ export async function addFriend(
       );
     }
 
-    const friend = friendResult.documents[0] as unknown as UserProfile;
-    const friendFriendIds = friend.friendIds || [];
-    const friendFriendNames = friend.friendNames || [];
+    const friendProfile = friendResult.documents[0] as unknown as UserProfile;
 
-    // Check if already friends
-    if (currentFriendIds.includes(friendUserId)) {
-      throw new FriendError(
-        FriendErrorCode.ALREADY_EXISTS,
-        'This user is already in your friend list'
+    // 1. Create friend relationship in friends collection
+    const friendDoc = await databases.createDocument(
+      APP_DATABASE_ID,
+      APP_COLLECTIONS.FRIENDS,
+      ID.unique(),
+      {
+        userId,
+        friendUserId,
+        name: friendProfile.name,
+        email: friendProfile.email,
+        status: 'accepted',
+        googleProfilePicture: friendProfile.googleProfilePicture || null,
+      }
+    );
+
+    // 2. Create REVERSE friend relationship in friends collection (bidirectional)
+    await databases.createDocument(
+      APP_DATABASE_ID,
+      APP_COLLECTIONS.FRIENDS,
+      ID.unique(),
+      {
+        userId: friendUserId,  // Friend is the owner
+        friendUserId: userId,  // Current user is the friend
+        name: '', // Will be filled from current user's profile
+        email: '', // Will be filled from current user's profile
+        status: 'accepted',
+        googleProfilePicture: null,
+      }
+    );
+
+    // 3. Get current user's profile for the reverse friendship
+    const currentUserResult = await databases.listDocuments(
+      APP_DATABASE_ID,
+      APP_COLLECTIONS.USER_PROFILES,
+      [Query.equal('userId', userId)]
+    );
+
+    if (currentUserResult.documents.length > 0) {
+      const currentUser = currentUserResult.documents[0];
+      
+      // Update current user's friendId and friendNames arrays
+      const currentFriendId = (currentUser.friendId as string[]) || [];
+      const currentFriendNames = (currentUser.friendNames as string[]) || [];
+
+      await databases.updateDocument(
+        APP_DATABASE_ID,
+        APP_COLLECTIONS.USER_PROFILES,
+        currentUser.$id,
+        {
+          friendId: [...currentFriendId, friendUserId],
+          friendNames: [...currentFriendNames, friendProfile.name],
+        }
       );
+
+      // Update the reverse friendship with current user's name and email
+      const reverseFriendship = await databases.listDocuments(
+        APP_DATABASE_ID,
+        APP_COLLECTIONS.FRIENDS,
+        [
+          Query.equal('userId', friendUserId),
+          Query.equal('friendUserId', userId)
+        ]
+      );
+
+      if (reverseFriendship.documents.length > 0) {
+        await databases.updateDocument(
+          APP_DATABASE_ID,
+          APP_COLLECTIONS.FRIENDS,
+          reverseFriendship.documents[0].$id,
+          {
+            name: currentUser.name,
+            email: currentUser.email,
+            googleProfilePicture: currentUser.googleProfilePicture || null,
+          }
+        );
+      }
     }
 
-    // Add friend to current user's arrays
+    // 4. Update friend's friendId and friendNames arrays
+    const friendFriendId = (friendProfile.friendId as string[]) || [];
+    const friendFriendNames = (friendProfile.friendNames as string[]) || [];
+
     await databases.updateDocument(
       APP_DATABASE_ID,
       APP_COLLECTIONS.USER_PROFILES,
-      currentUser.$id,
+      friendResult.documents[0].$id,
       {
-        friendIds: [...currentFriendIds, friendUserId],
-        friendNames: [...currentFriendNames, friend.name],
+        friendId: [...friendFriendId, userId],
+        friendNames: [...friendFriendNames, currentUserResult.documents[0].name],
       }
     );
 
-    // Add current user to friend's arrays (bidirectional)
-    await databases.updateDocument(
-      APP_DATABASE_ID,
-      APP_COLLECTIONS.USER_PROFILES,
-      friend.$id,
-      {
-        friendIds: [...friendFriendIds, userId],
-        friendNames: [...friendFriendNames, currentUser.name],
-      }
-    );
-
-    return friend;
+    return friendDoc as unknown as Friend;
   } catch (error) {
     if (error instanceof FriendError) {
       throw error;
@@ -176,32 +245,31 @@ export async function addFriend(
  */
 export async function getFriends(userId: string): Promise<UserProfile[]> {
   try {
-    // Get user's profile
-    const userResult = await databases.listDocuments(
-      APP_DATABASE_ID,
-      APP_COLLECTIONS.USER_PROFILES,
-      [Query.equal('userId', userId)]
-    );
-
-    if (userResult.documents.length === 0) {
-      return [];
-    }
-
-    const user = userResult.documents[0] as unknown as UserProfile;
-    const friendIds = user.friendIds || [];
-
-    if (friendIds.length === 0) {
-      return [];
-    }
-
-    // Get friend profiles
+    // Get all friend relationships where this user is the owner
     const friendsResult = await databases.listDocuments(
       APP_DATABASE_ID,
-      APP_COLLECTIONS.USER_PROFILES,
-      [Query.equal('userId', friendIds)]
+      APP_COLLECTIONS.FRIENDS,
+      [
+        Query.equal('userId', userId),
+        Query.equal('status', 'accepted')
+      ]
     );
 
-    return friendsResult.documents as unknown as UserProfile[];
+    if (friendsResult.documents.length === 0) {
+      return [];
+    }
+
+    // Extract friend user IDs
+    const friendUserIds = friendsResult.documents.map((doc: any) => doc.friendUserId);
+
+    // Get friend profiles from userprofiles collection
+    const profilesResult = await databases.listDocuments(
+      APP_DATABASE_ID,
+      APP_COLLECTIONS.USER_PROFILES,
+      [Query.equal('userId', friendUserIds)]
+    );
+
+    return profilesResult.documents as unknown as UserProfile[];
   } catch (error) {
     console.error('Error getting friends:', error);
     return [];
@@ -209,7 +277,7 @@ export async function getFriends(userId: string): Promise<UserProfile[]> {
 }
 
 /**
- * Remove a friend (bidirectional)
+ * Remove a friend (removes from BOTH friends collection AND userprofiles)
  * @param userId - ID of the user removing the friend
  * @param friendUserId - ID of the friend to remove
  */
@@ -218,7 +286,25 @@ export async function removeFriend(
   friendUserId: string
 ): Promise<void> {
   try {
-    // Get current user's profile
+    // 1. Delete from friends collection
+    const friendshipResult = await databases.listDocuments(
+      APP_DATABASE_ID,
+      APP_COLLECTIONS.FRIENDS,
+      [
+        Query.equal('userId', userId),
+        Query.equal('friendUserId', friendUserId)
+      ]
+    );
+
+    if (friendshipResult.documents.length > 0) {
+      await databases.deleteDocument(
+        APP_DATABASE_ID,
+        APP_COLLECTIONS.FRIENDS,
+        friendshipResult.documents[0].$id
+      );
+    }
+
+    // 2. Remove from current user's friendId and friendNames arrays in userprofiles
     const currentUserResult = await databases.listDocuments(
       APP_DATABASE_ID,
       APP_COLLECTIONS.USER_PROFILES,
@@ -226,16 +312,14 @@ export async function removeFriend(
     );
 
     if (currentUserResult.documents.length > 0) {
-      const currentUser = currentUserResult.documents[0] as unknown as UserProfile;
-      const currentFriendIds = currentUser.friendIds || [];
-      const currentFriendNames = currentUser.friendNames || [];
+      const currentUser = currentUserResult.documents[0];
+      const currentFriendId = (currentUser.friendId as string[]) || [];
+      const currentFriendNames = (currentUser.friendNames as string[]) || [];
       
-      // Find index of friend to remove
-      const friendIndex = currentFriendIds.indexOf(friendUserId);
+      const friendIndex = currentFriendId.indexOf(friendUserId);
       
       if (friendIndex !== -1) {
-        // Remove friend from both arrays
-        const updatedIds = currentFriendIds.filter((_, i) => i !== friendIndex);
+        const updatedIds = currentFriendId.filter((_, i) => i !== friendIndex);
         const updatedNames = currentFriendNames.filter((_, i) => i !== friendIndex);
         
         await databases.updateDocument(
@@ -243,39 +327,7 @@ export async function removeFriend(
           APP_COLLECTIONS.USER_PROFILES,
           currentUser.$id,
           {
-            friendIds: updatedIds,
-            friendNames: updatedNames,
-          }
-        );
-      }
-    }
-
-    // Get friend's profile
-    const friendResult = await databases.listDocuments(
-      APP_DATABASE_ID,
-      APP_COLLECTIONS.USER_PROFILES,
-      [Query.equal('userId', friendUserId)]
-    );
-
-    if (friendResult.documents.length > 0) {
-      const friend = friendResult.documents[0] as unknown as UserProfile;
-      const friendFriendIds = friend.friendIds || [];
-      const friendFriendNames = friend.friendNames || [];
-      
-      // Find index of current user to remove
-      const userIndex = friendFriendIds.indexOf(userId);
-      
-      if (userIndex !== -1) {
-        // Remove current user from both arrays
-        const updatedIds = friendFriendIds.filter((_, i) => i !== userIndex);
-        const updatedNames = friendFriendNames.filter((_, i) => i !== userIndex);
-        
-        await databases.updateDocument(
-          APP_DATABASE_ID,
-          APP_COLLECTIONS.USER_PROFILES,
-          friend.$id,
-          {
-            friendIds: updatedIds,
+            friendId: updatedIds,
             friendNames: updatedNames,
           }
         );
@@ -298,20 +350,17 @@ export async function areFriends(
   userId2: string
 ): Promise<boolean> {
   try {
-    const userResult = await databases.listDocuments(
+    const friendshipResult = await databases.listDocuments(
       APP_DATABASE_ID,
-      APP_COLLECTIONS.USER_PROFILES,
-      [Query.equal('userId', userId1)]
+      APP_COLLECTIONS.FRIENDS,
+      [
+        Query.equal('userId', userId1),
+        Query.equal('friendUserId', userId2),
+        Query.equal('status', 'accepted')
+      ]
     );
 
-    if (userResult.documents.length === 0) {
-      return false;
-    }
-
-    const user = userResult.documents[0] as unknown as UserProfile;
-    const friendIds = user.friendIds || [];
-
-    return friendIds.includes(userId2);
+    return friendshipResult.documents.length > 0;
   } catch (error) {
     console.error('Error checking friendship:', error);
     return false;
@@ -361,20 +410,16 @@ export async function getFriend(
  */
 export async function getFriendCount(userId: string): Promise<number> {
   try {
-    const userResult = await databases.listDocuments(
+    const friendsResult = await databases.listDocuments(
       APP_DATABASE_ID,
-      APP_COLLECTIONS.USER_PROFILES,
-      [Query.equal('userId', userId)]
+      APP_COLLECTIONS.FRIENDS,
+      [
+        Query.equal('userId', userId),
+        Query.equal('status', 'accepted')
+      ]
     );
 
-    if (userResult.documents.length === 0) {
-      return 0;
-    }
-
-    const user = userResult.documents[0] as unknown as UserProfile;
-    const friendIds = user.friendIds || [];
-
-    return friendIds.length;
+    return friendsResult.documents.length;
   } catch (error) {
     console.error('Error getting friend count:', error);
     return 0;
@@ -396,42 +441,42 @@ export async function searchFriendsByName(
       return [];
     }
 
-    // Get user's profile
-    const userResult = await databases.listDocuments(
+    // Get all friends for this user
+    const friendsResult = await databases.listDocuments(
       APP_DATABASE_ID,
-      APP_COLLECTIONS.USER_PROFILES,
-      [Query.equal('userId', userId)]
+      APP_COLLECTIONS.FRIENDS,
+      [
+        Query.equal('userId', userId),
+        Query.equal('status', 'accepted')
+      ]
     );
 
-    if (userResult.documents.length === 0) {
+    if (friendsResult.documents.length === 0) {
       return [];
     }
 
-    const user = userResult.documents[0] as unknown as UserProfile;
-    const friendIds = user.friendIds || [];
-    const friendNames = user.friendNames || [];
-
-    // Find matching friend names (case-insensitive)
+    // Filter friends by name (case-insensitive) - client-side filtering
     const lowerQuery = query.toLowerCase();
-    const matchingIndices = friendNames
-      .map((name, i) => name.toLowerCase().includes(lowerQuery) ? i : -1)
-      .filter(i => i !== -1);
+    const matchingFriends = friendsResult.documents.filter((doc: any) => 
+      doc.name?.toLowerCase().includes(lowerQuery) ||
+      doc.email?.toLowerCase().includes(lowerQuery)
+    );
 
-    if (matchingIndices.length === 0) {
+    if (matchingFriends.length === 0) {
       return [];
     }
 
-    // Get matching friend IDs
-    const matchingFriendIds = matchingIndices.map(i => friendIds[i]);
+    // Get matching friend user IDs
+    const matchingFriendIds = matchingFriends.map((doc: any) => doc.friendUserId);
 
-    // Get friend profiles
-    const friendsResult = await databases.listDocuments(
+    // Get friend profiles from userprofiles collection
+    const profilesResult = await databases.listDocuments(
       APP_DATABASE_ID,
       APP_COLLECTIONS.USER_PROFILES,
       [Query.equal('userId', matchingFriendIds)]
     );
 
-    return friendsResult.documents as unknown as UserProfile[];
+    return profilesResult.documents as unknown as UserProfile[];
   } catch (error) {
     console.error('Error searching friends by name:', error);
     return [];

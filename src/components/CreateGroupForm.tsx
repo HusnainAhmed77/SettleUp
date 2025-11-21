@@ -68,10 +68,14 @@ export default function CreateGroupForm({ onClose, onSuccess }: CreateGroupFormP
       
       memberNames.forEach((memberName) => {
         if (memberName === 'You') {
-          // Always use the currentUser ID to ensure consistency
-          memberIds.push(currentUser.id);
+          // Use real Appwrite user ID for authenticated users
+          if (user?.$id) {
+            memberIds.push(user.$id);  // Real Appwrite ID!
+          } else {
+            memberIds.push(currentUser.id);  // Fallback to mock for demo mode
+          }
         } else {
-          // Create a new user for each friend name
+          // Create a new user for each friend name (non-registered members)
           const email = `${memberName.toLowerCase().replace(/\s+/g, '.')}@example.com`;
           const existingUser = dataStore.getUsers().find(u => u.name === memberName);
           
@@ -87,8 +91,22 @@ export default function CreateGroupForm({ onClose, onSuccess }: CreateGroupFormP
       // Combine member IDs with selected friend IDs (friends are verified users)
       const allMemberIds = [...new Set([...memberIds, ...selectedFriendIds])];
 
-      // Ensure all selected friends exist in the dataStore users array
+      // Ensure all users exist in the dataStore users array
       const currentUsers = dataStore.getUsers();
+      
+      // Add authenticated user if not already in dataStore
+      if (user?.$id) {
+        const existingCurrentUser = currentUsers.find(u => u.id === user.$id);
+        if (!existingCurrentUser) {
+          currentUsers.push({
+            id: user.$id,
+            name: user.name,
+            email: user.email,
+          });
+        }
+      }
+      
+      // Add all selected friends to dataStore
       selectedFriendIds.forEach(friendId => {
         const friend = friends.find(f => f.userId === friendId);
         if (friend) {
@@ -120,11 +138,17 @@ export default function CreateGroupForm({ onClose, onSuccess }: CreateGroupFormP
       // Create group using both dataStore (for local state) and groupsService (for Appwrite with sharedWith)
       if (user?.$id) {
         // Create in Appwrite with sharedWith support - pass selectedFriendIds directly
-        const createdGroup = await createGroupService(user.$id, {
-          name,
-          description,
-          members: memberUsers, // Pass User objects instead of IDs
-        }, selectedFriendIds); // Pass friend IDs to be added to sharedWith during creation
+        const createdGroup = await createGroupService(
+          user.$id, 
+          {
+            name,
+            description,
+            members: memberUsers, // Pass User objects instead of IDs
+          }, 
+          selectedFriendIds, // Pass friend IDs to be added to sharedWith during creation
+          user.name, // Pass creator name
+          user.email // Pass creator email
+        );
       }
       
       // Also update local dataStore for immediate UI update

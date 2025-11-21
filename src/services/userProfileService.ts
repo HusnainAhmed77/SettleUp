@@ -6,18 +6,15 @@ import { ID } from 'appwrite';
  */
 export interface UserProfile {
   $id: string;
-  userId: string; // Appwrite user ID (required, size: 100)
-  name: string; // User name (required, size: 200)
-  email: string; // User email (required, email type)
-  profilePicture?: string; // Profile picture URL (optional, url type)
-  provider: string; // Auth provider (required, size: 50)
-  createdAt: string; // Creation timestamp (required, datetime)
-  lastLoginAt: string; // Last login timestamp (required, datetime)
-  friendIds?: string[]; // Array of friend user IDs (optional, string array, size: 255)
-  friendNames?: string[]; // Array of friend names (optional, string array, size: 255)
-  googleProfilePicture?: string; // Google profile picture URL (optional, size: 500)
-  $createdAt: string; // Appwrite created timestamp
-  $updatedAt: string; // Appwrite updated timestamp
+  userId: string; // Appwrite user ID
+  name: string; // User name
+  email: string; // User email
+  profilePicture?: string; // Profile picture URL (optional)
+  provider: string; // Auth provider
+  currency?: string; // User's preferred currency (optional)
+  googleProfilePicture?: string; // Google profile picture URL (optional)
+  $createdAt: string; // Appwrite created timestamp (automatic)
+  $updatedAt: string; // Appwrite updated timestamp (automatic)
 }
 
 /**
@@ -61,7 +58,6 @@ export async function createOrUpdateUserProfile(
         email,
         name,
         provider,
-        lastLoginAt: now,
       };
       
       // Handle profile picture based on provider
@@ -98,10 +94,6 @@ export async function createOrUpdateUserProfile(
         email,
         name,
         provider,
-        createdAt: now,
-        lastLoginAt: now,
-        friendIds: [],
-        friendNames: [],
       };
       
       // Handle profile picture based on provider

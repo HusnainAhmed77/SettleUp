@@ -27,6 +27,7 @@ export interface Group {
   expenses: Expense[];
   settlements?: SettlementPayment[]; // Track settlement payments separately
   createdAt: Date;
+  currency?: string; // Group currency (e.g., "USD", "EUR")
 }
 
 export const mockUsers: User[] = [

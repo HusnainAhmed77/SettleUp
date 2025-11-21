@@ -209,6 +209,7 @@ class DataStore {
     
     if (this.userId) {
       // Save to Appwrite
+      // Note: User name/email are passed separately by CreateGroupForm via groupsService
       try {
         const newGroup = await dataService.createGroup(name, description, members, this.userId);
         this.groups.push(newGroup);
@@ -287,7 +288,7 @@ class DataStore {
       id: this.generateId(),
       title,
       amountCents,
-      currency: 'USD',
+      currency: group.currency || 'USD', // Use group's currency
       payerId,
       payers,
       participants: participantIds,
@@ -298,7 +299,18 @@ class DataStore {
 
     if (this.userId) {
       try {
-        const savedExpense = await dataService.createExpense(groupId, newExpense, this.userId);
+        // Get payer info from group members
+        const payer = group.members.find(m => m.id === payerId);
+        const payerName = payer?.name || '';
+        const payerEmail = payer?.email || '';
+        
+        const savedExpense = await dataService.createExpense(
+          groupId, 
+          newExpense, 
+          this.userId,
+          payerName,
+          payerEmail
+        );
         group.expenses.push(savedExpense);
         this.notify();
         return savedExpense;
@@ -441,11 +453,14 @@ class DataStore {
     splits: { [userId: string]: number },
     notes?: string
   ): UpcomingExpense {
+    const group = this.groups.find(g => g.id === groupId);
+    const groupCurrency = group?.currency || 'USD';
+    
     const newUpcoming: UpcomingExpense = {
       id: this.generateId(),
       title,
       amountCents,
-      currency: 'USD',
+      currency: groupCurrency, // Use group's currency
       targetDate,
       groupId,
       createdBy,

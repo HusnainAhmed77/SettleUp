@@ -9,12 +9,17 @@ const EXPENSES_COLLECTION_ID = 'expenses';
 const UPCOMING_EXPENSES_COLLECTION_ID = 'upcomingExpenses';
 
 // Helper to convert Group to Appwrite document
-function groupToDocument(group: Group, userId: string) {
+function groupToDocument(group: Group, userId: string, userName?: string, userEmail?: string, currency: string = 'USD') {
   return {
     name: group.name,
     description: group.description,
     userId: userId,
     members: JSON.stringify(group.members),
+    creatorName: userName || '',
+    creatorEmail: userEmail || '',
+    adminUserId: userId,
+    sharedWith: [], // Initialize empty array
+    currency: currency, // Add currency field
   };
 }
 
@@ -51,11 +56,12 @@ function documentToGroup(doc: any): Group {
     members,
     expenses: [], // Expenses loaded separately
     createdAt: new Date(doc.$createdAt),
+    currency: doc.currency || 'USD', // Include currency with default
   };
 }
 
 // Helper to convert Expense to Appwrite document
-function expenseToDocument(expense: Expense, groupId: string, userId: string) {
+function expenseToDocument(expense: Expense, groupId: string, userId: string, payerName?: string, payerEmail?: string) {
   return {
     groupId: groupId,
     userId: userId,
@@ -63,11 +69,16 @@ function expenseToDocument(expense: Expense, groupId: string, userId: string) {
     amountCents: expense.amountCents,
     currency: expense.currency,
     payerId: expense.payerId,
+    payerName: payerName || '', // Add payer name for readability
+    payerEmail: payerEmail || '', // Add payer email for readability
     participants: JSON.stringify(expense.participants),
     splitType: expense.splitType,
     splits: JSON.stringify(expense.splits),
     payers: expense.payers ? JSON.stringify(expense.payers) : '',
     date: expense.date.toISOString(),
+    isAdminSettlement: false, // Default to false
+    adminNotes: null,
+    settledBy: null,
   };
 }
 
@@ -92,7 +103,10 @@ export async function createGroup(
   name: string,
   description: string,
   members: User[],
-  userId: string
+  userId: string,
+  userName?: string,
+  userEmail?: string,
+  currency: string = 'USD'
 ): Promise<Group> {
   const group: Group = {
     id: '', // Will be set by Appwrite
@@ -107,7 +121,12 @@ export async function createGroup(
     DATABASE_ID,
     GROUPS_COLLECTION_ID,
     ID.unique(),
-    groupToDocument(group, userId)
+    groupToDocument(group, userId, userName, userEmail, currency),
+    [
+      Permission.read(Role.users()), // Any authenticated user can read
+      Permission.update(Role.user(userId)),
+      Permission.delete(Role.user(userId))
+    ]
   );
 
   return documentToGroup(doc);
@@ -115,12 +134,15 @@ export async function createGroup(
 
 export async function getUserGroups(userId: string): Promise<Group[]> {
   try {
+    console.log('🔍 Loading groups for user:', userId);
+    
     // Get groups created by user
     const createdResponse = await databases.listDocuments(
       DATABASE_ID,
       GROUPS_COLLECTION_ID,
       [Query.equal('userId', userId)]
     );
+    console.log('📁 Created groups:', createdResponse.documents.length);
 
     // Get groups shared with user (where user is in sharedWith array)
     const sharedResponse = await databases.listDocuments(
@@ -128,23 +150,27 @@ export async function getUserGroups(userId: string): Promise<Group[]> {
       GROUPS_COLLECTION_ID,
       [Query.equal('sharedWith', userId)]
     );
+    console.log('🤝 Shared groups:', sharedResponse.documents.length);
 
     // Combine and deduplicate
     const allDocs = [...createdResponse.documents, ...sharedResponse.documents];
     const uniqueDocs = Array.from(
       new Map(allDocs.map(doc => [doc.$id, doc])).values()
     );
+    console.log('✅ Total unique groups:', uniqueDocs.length);
 
     const groups = uniqueDocs.map(documentToGroup);
 
     // Load expenses for each group
     for (const group of groups) {
+      console.log(`💰 Loading expenses for group: ${group.name} (${group.id})`);
       group.expenses = await getGroupExpenses(group.id);
+      console.log(`   Found ${group.expenses.length} expenses`);
     }
 
     return groups;
   } catch (error) {
-    console.error('Error fetching groups:', error);
+    console.error('❌ Error fetching groups:', error);
     return [];
   }
 }
@@ -205,13 +231,15 @@ export async function deleteGroup(groupId: string): Promise<void> {
 export async function createExpense(
   groupId: string,
   expense: Expense,
-  userId: string
+  userId: string,
+  payerName?: string,
+  payerEmail?: string
 ): Promise<Expense> {
   const doc = await databases.createDocument(
     DATABASE_ID,
     EXPENSES_COLLECTION_ID,
     ID.unique(),
-    expenseToDocument(expense, groupId, userId),
+    expenseToDocument(expense, groupId, userId, payerName, payerEmail),
     [
       Permission.read(Role.users()), // Any authenticated user can read
       Permission.update(Role.user(userId)),
@@ -224,15 +252,16 @@ export async function createExpense(
 
 export async function getGroupExpenses(groupId: string): Promise<Expense[]> {
   try {
+    console.log('🔍 Querying expenses for groupId:', groupId);
     const response = await databases.listDocuments(
       DATABASE_ID,
       EXPENSES_COLLECTION_ID,
       [Query.equal('groupId', groupId), Query.orderDesc('date')]
     );
-
+    console.log(`✅ Found ${response.documents.length} expenses for group ${groupId}`);
     return response.documents.map(documentToExpense);
   } catch (error) {
-    console.error('Error fetching expenses:', error);
+    console.error('❌ Error fetching expenses for group', groupId, ':', error);
     return [];
   }
 }

@@ -400,6 +400,64 @@ export default function DashboardPage() {
           </motion.div>
         </div>
 
+        {/* Friends Card - Always visible for authenticated users */}
+        {isAuthenticated && (
+          <div className="mb-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              <Card className="bg-white shadow-lg border-2 border-dashed border-[#00CFFF]/30">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-[#333333]">
+                      <Users className="w-5 h-5 text-[#00CFFF]" />
+                      Friends ({friends.length})
+                    </CardTitle>
+                    <Button
+                      size="sm"
+                      onClick={() => setShowAddFriend(true)}
+                      className="bg-[#00CFFF] hover:bg-[#FF007F] text-white gap-1"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Friend
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {friends.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-[#666666] mb-2">No friends yet</p>
+                      <p className="text-sm text-[#999999]">Add friends to share expenses</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {friends.map((friend, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-3 p-3 bg-[#00CFFF]/5 rounded-lg hover:bg-[#00CFFF]/10 transition-colors"
+                        >
+                          <Avatar 
+                            src={friend.profilePicture || friend.googleProfilePicture} 
+                            alt={friend.name} 
+                            initials={friend.name} 
+                            size="sm" 
+                          />
+                          <div className="flex-1">
+                            <p className="font-semibold text-[#333333]">{friend.name}</p>
+                            <p className="text-xs text-[#666666]">{friend.email}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+        )}
+
         {/* Charts Section */}
         {spendingByGroup.length > 0 && (
           <div className="grid md:grid-cols-2 gap-6 mb-8">
@@ -494,57 +552,6 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </motion.div>
-
-            {/* Friends Card */}
-            {isAuthenticated && (
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.6 }}
-              >
-                <Card className="bg-white shadow-lg border-2 border-dashed border-[#00CFFF]/30">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="flex items-center gap-2 text-[#333333]">
-                        <Users className="w-5 h-5 text-[#00CFFF]" />
-                        Friends ({friends.length})
-                      </CardTitle>
-                      <Button
-                        size="sm"
-                        onClick={() => setShowAddFriend(true)}
-                        className="bg-[#00CFFF] hover:bg-[#FF007F] text-white gap-1"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add Friend
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {friends.length === 0 ? (
-                      <div className="text-center py-8">
-                        <p className="text-[#666666] mb-2">No friends yet</p>
-                        <p className="text-sm text-[#999999]">Add friends to share expenses</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {friends.map((friend, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center gap-3 p-3 bg-[#00CFFF]/5 rounded-lg hover:bg-[#00CFFF]/10 transition-colors"
-                          >
-                            <Avatar alt={friend.name} initials={friend.name} size="sm" />
-                            <div className="flex-1">
-                              <p className="font-semibold text-[#333333]">{friend.name}</p>
-                              <p className="text-xs text-[#666666]">{friend.email}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </motion.div>
-            )}
           </div>
         )}
 
