@@ -16,13 +16,17 @@ import Card, { CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Avatar from '@/components/ui/Avatar';
 import Badge from '@/components/ui/Badge';
-import { currentUser as mockCurrentUser } from '@/lib/mockData';
+import { currentUser as mockCurrentUser, User } from '@/lib/mockData';
 import {
   buildLedger,
   computeNetBalances,
   simplifyDebts,
   formatCents,
   getBalanceBetween,
+  Settlement,
+  NetBalance,
+  Expense,
+  Split,
 } from '@/lib/split';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useAuth } from '@/contexts/AuthContext';
@@ -85,7 +89,7 @@ function GroupDetailPageContent({
   // Get all unique user IDs from group members for profile picture fetching
   const allUserIds = useMemo(() => {
     if (!group) return [];
-    return group.members.map(member => member.id);
+    return group.members.map((member: User) => member.id);
   }, [group]);
   
   // Fetch profile pictures for all users
@@ -149,12 +153,12 @@ function GroupDetailPageContent({
     currentUserId,
     groupMembers: group.members,
     groupExpenses: group.expenses,
-    memberIds: group.members.map(m => m.id),
+    memberIds: group.members.map((m: User) => m.id),
     useJsonSystem,
   });
   
   // Use pre-computed data from JSON if available, otherwise compute on the fly
-  const userIds = useMemo(() => group.members.map(m => m.id), [group.members]);
+  const userIds = useMemo(() => group.members.map((m: User) => m.id), [group.members]);
   
   const ledger = useMemo(() => {
     if (useJsonSystem && groupData?.computed?.ledger) {
@@ -185,7 +189,7 @@ function GroupDetailPageContent({
     usingPrecomputed: useJsonSystem && !!groupData?.computed,
   });
   
-  const myBalance = balances.find(b => b.userId === currentUserId);
+  const myBalance = balances.find((b: NetBalance) => b.userId === currentUserId);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
@@ -306,9 +310,9 @@ function GroupDetailPageContent({
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {settlements.map((settlement, index) => {
-                        const fromUser = group.members.find(m => m.id === settlement.from);
-                        const toUser = group.members.find(m => m.id === settlement.to);
+                      {settlements.map((settlement: Settlement, index: number) => {
+                        const fromUser = group.members.find((m: User) => m.id === settlement.from);
+                        const toUser = group.members.find((m: User) => m.id === settlement.to);
                         const isMySettlement = settlement.from === currentUserId || settlement.to === currentUserId;
                         
                         const handleSettleUp = () => {
@@ -430,9 +434,9 @@ function GroupDetailPageContent({
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {group.expenses.slice(0, 5).map((expense, index) => {
-                        const payer = group.members.find(m => m.id === expense.payerId);
-                        const myShare = expense.splits.find(s => s.userId === currentUserId);
+                      {group.expenses.slice(0, 5).map((expense: Expense, index: number) => {
+                        const payer = group.members.find((m: User) => m.id === expense.payerId);
+                        const myShare = expense.splits.find((s: Split) => s.userId === currentUserId);
                         
                         return (
                           <motion.div 
@@ -498,15 +502,15 @@ function GroupDetailPageContent({
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {group.members.map((member, index) => {
-                      const balance = balances.find(b => b.userId === member.id);
+                    {group.members.map((member: User, index: number) => {
+                      const balance = balances.find((b: NetBalance) => b.userId === member.id);
                       const netCents = balance?.netCents || 0;
                       
                       // Get detailed breakdown - show NET balance between each pair
                       const owesTo: { name: string; amount: number }[] = [];
                       const owedBy: { name: string; amount: number }[] = [];
                       
-                      group.members.forEach(otherMember => {
+                      group.members.forEach((otherMember: User) => {
                         if (otherMember.id !== member.id) {
                           const memberOwesOther = ledger.get(member.id)?.get(otherMember.id) || 0;
                           const otherOwesMember = ledger.get(otherMember.id)?.get(member.id) || 0;
@@ -596,8 +600,8 @@ function GroupDetailPageContent({
                 <CardContent>
                   <div className="space-y-3">
                     {group.members
-                      .filter(m => m.id !== currentUserId)
-                      .map((member, index) => {
+                      .filter((m: User) => m.id !== currentUserId)
+                      .map((member: User, index: number) => {
                         const balance = getBalanceBetween(ledger, currentUserId, member.id);
                         
                         return (
