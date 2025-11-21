@@ -16,7 +16,8 @@ import DemoModeBanner from '@/components/DemoModeBanner';
 import AddFriendModal from '@/components/AddFriendModal';
 import { currentUser } from '@/lib/mockData';
 import { buildLedger, computeNetBalances, formatCents, getCurrentMonthSpending } from '@/lib/split';
-import { useGroups, useStoreLoading } from '@/hooks/useStore';
+import { useStoreLoading } from '@/hooks/useStore';
+import { useGroupsWithJson } from '@/hooks/useGroupsWithJson';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { dataStore } from '@/lib/store';
@@ -27,7 +28,7 @@ export const dynamic = 'force-dynamic';
 
 export default function DashboardPage() {
   const { isAuthenticated, user, loading: authLoading } = useAuth();
-  const groups = useGroups();
+  const { groups, loading: jsonLoading } = useGroupsWithJson();
   const storeLoading = useStoreLoading();
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showAddFriend, setShowAddFriend] = useState(false);
@@ -47,7 +48,7 @@ export default function DashboardPage() {
   }, [user]);
   
   // Show loading state while auth or data is loading
-  const isLoading = authLoading || (isAuthenticated && storeLoading);
+  const isLoading = authLoading || (isAuthenticated && storeLoading) || jsonLoading;
 
   const handleDeleteGroup = async (e: React.MouseEvent, groupId: string) => {
     e.preventDefault(); // Prevent navigation to group page
@@ -144,6 +145,9 @@ export default function DashboardPage() {
     );
   }
   
+  // Use authenticated user ID or fall back to mock user
+  const currentUserId = user?.$id || currentUser.id;
+  
   // Compute overall balance across all groups
   const overallBalance = useMemo(() => {
     let totalNet = 0;
@@ -152,14 +156,14 @@ export default function DashboardPage() {
       const userIds = group.members.map(m => m.id);
       const ledger = buildLedger(group.expenses, userIds, group.settlements);
       const balances = computeNetBalances(ledger, userIds);
-      const myBalance = balances.find(b => b.userId === currentUser.id);
+      const myBalance = balances.find(b => b.userId === currentUserId);
       if (myBalance) {
         totalNet += myBalance.netCents;
       }
     });
     
     return totalNet;
-  }, [groups]);
+  }, [groups, currentUserId]);
 
   // Compute balance for each group
   const groupBalances = useMemo(() => {
@@ -167,14 +171,14 @@ export default function DashboardPage() {
       const userIds = group.members.map(m => m.id);
       const ledger = buildLedger(group.expenses, userIds, group.settlements);
       const balances = computeNetBalances(ledger, userIds);
-      const myBalance = balances.find(b => b.userId === currentUser.id);
+      const myBalance = balances.find(b => b.userId === currentUserId);
       
       return {
         groupId: group.id,
         netCents: myBalance?.netCents || 0,
       };
     });
-  }, [groups]);
+  }, [groups, currentUserId]);
 
   // Calculate totals for you owe and you are owed
   const { youOwe, youAreOwed } = useMemo(() => {
@@ -195,19 +199,19 @@ export default function DashboardPage() {
   // Calculate monthly spending
   const monthlySpending = useMemo(() => {
     const allExpenses = groups.flatMap(group => group.expenses);
-    return getCurrentMonthSpending(allExpenses, currentUser.id);
-  }, [groups]);
+    return getCurrentMonthSpending(allExpenses, currentUserId);
+  }, [groups, currentUserId]);
 
   // Calculate spending by group for pie chart
   const spendingByGroup = useMemo(() => {
     return groups.map(group => ({
       name: group.name,
       value: group.expenses
-        .filter(exp => exp.payerId === currentUser.id)
+        .filter(exp => exp.payerId === currentUserId)
         .reduce((sum, exp) => sum + exp.amountCents, 0) / 100,
       color: `hsl(${Math.random() * 360}, 70%, 60%)`
     })).filter(item => item.value > 0);
-  }, [groups]);
+  }, [groups, currentUserId]);
 
   // Calculate activity stats
   const activityStats = useMemo(() => {

@@ -31,6 +31,7 @@ export default function CreateGroupForm({ onClose, onSuccess }: CreateGroupFormP
   const [currentMemberName, setCurrentMemberName] = useState('');
   const [friends, setFriends] = useState<Friend[]>([]);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Load friends
   useEffect(() => {
@@ -50,19 +51,30 @@ export default function CreateGroupForm({ onClose, onSuccess }: CreateGroupFormP
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent double submission
+    if (isSubmitting) {
+      console.log('⚠️ Form already submitting, ignoring duplicate submission');
+      return;
+    }
+    
+    setIsSubmitting(true);
     setError('');
 
     if (!name.trim()) {
       setError('Group name is required');
+      setIsSubmitting(false);
       return;
     }
 
     if (memberNames.length < 2 && selectedFriendIds.length === 0) {
       setError('Please add at least 2 members (including yourself) or select friends to share with');
+      setIsSubmitting(false);
       return;
     }
 
     try {
+      console.log('🔵 Creating group:', name);
       // Create actual User objects for each member name
       const memberIds: string[] = [];
       
@@ -135,7 +147,8 @@ export default function CreateGroupForm({ onClose, onSuccess }: CreateGroupFormP
         };
       });
 
-      // Create group using both dataStore (for local state) and groupsService (for Appwrite with sharedWith)
+      // Create group using groupsService (for Appwrite with sharedWith)
+      // This will also create the JSON document in expenses_data collection
       if (user?.$id) {
         // Create in Appwrite with sharedWith support - pass selectedFriendIds directly
         const createdGroup = await createGroupService(
@@ -147,18 +160,22 @@ export default function CreateGroupForm({ onClose, onSuccess }: CreateGroupFormP
           }, 
           selectedFriendIds, // Pass friend IDs to be added to sharedWith during creation
           user.name, // Pass creator name
-          user.email // Pass creator email
+          user.email, // Pass creator email
+          'USD' // Default currency
         );
+        console.log('✅ Group created:', createdGroup);
+      } else {
+        // Fallback to dataStore for demo mode (no authenticated user)
+        await dataStore.createGroup(name, description, allMemberIds);
       }
-      
-      // Also update local dataStore for immediate UI update
-      await dataStore.createGroup(name, description, allMemberIds);
 
       onSuccess();
       onClose();
     } catch (err) {
       console.error('Error creating group:', err);
       setError('Failed to create group');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -351,8 +368,9 @@ export default function CreateGroupForm({ onClose, onSuccess }: CreateGroupFormP
               type="submit"
               variant="primary"
               className="flex-1"
+              disabled={isSubmitting}
             >
-              Create Group
+              {isSubmitting ? 'Creating...' : 'Create Group'}
             </Button>
           </div>
         </form>

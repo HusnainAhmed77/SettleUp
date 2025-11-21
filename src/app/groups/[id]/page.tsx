@@ -10,7 +10,7 @@ import SettleUpModal from '@/components/SettleUpModal';
 import AddFriendModal from '@/components/AddFriendModal';
 import AdminBadge from '@/components/AdminBadge';
 import AdminSettlementButton from '@/components/AdminSettlementButton';
-import { useGroup } from '@/hooks/useStore';
+import GroupPageWrapper from '@/components/GroupPageWrapper';
 import { ArrowRight, Plus, Users, Calculator, ArrowLeft, TrendingUp, TrendingDown, Receipt } from 'lucide-react';
 import Card, { CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -24,13 +24,48 @@ import {
   formatCents,
   getBalanceBetween,
 } from '@/lib/split';
-import { dataStore } from '@/lib/store';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useAuth } from '@/contexts/AuthContext';
+import { useExpenseOperations } from '@/hooks/useExpenseOperations';
+import { groupComputationService } from '@/services/groupComputationService';
 
 export const dynamic = 'force-dynamic';
 
 export default function GroupDetailPage() {
+  const params = useParams();
+  const groupId = params?.id as string;
+  
+  return (
+    <GroupPageWrapper groupId={groupId}>
+      {({ group, groupData, loading, error, refresh, useJsonSystem }) => (
+        <GroupDetailPageContent 
+          group={group}
+          groupData={groupData}
+          loading={loading}
+          error={error}
+          refresh={refresh}
+          useJsonSystem={useJsonSystem}
+        />
+      )}
+    </GroupPageWrapper>
+  );
+}
+
+function GroupDetailPageContent({ 
+  group, 
+  groupData, 
+  loading, 
+  error, 
+  refresh, 
+  useJsonSystem 
+}: {
+  group: any;
+  groupData: any;
+  loading: boolean;
+  error: Error | null;
+  refresh: () => void;
+  useJsonSystem: boolean;
+}) {
   const params = useParams();
   const groupId = params?.id as string;
   const [showAddExpense, setShowAddExpense] = useState(false);
@@ -43,9 +78,15 @@ export default function GroupDetailPage() {
   } | null>(null);
   const [showAddFriend, setShowAddFriend] = useState(false);
   
-  const group = useGroup(groupId);
   const userCurrency = useCurrency();
   const { user } = useAuth();
+  
+  // Use expense operations hook
+  const { recordSettlement } = useExpenseOperations({
+    groupId,
+    useJsonSystem,
+    onSuccess: refresh,
+  });
   
   // Determine admin - the user who created the group (userId field)
   const adminUserId = group?.userId || '';
@@ -57,15 +98,31 @@ export default function GroupDetailPage() {
     currentUserId: user?.$id,
     adminUserId,
     isCurrentUserAdmin,
-    groupName: group?.name
+    groupName: group?.name,
+    useJsonSystem,
   });
   
-  if (!group) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 flex items-center justify-center">
         <Card className="border-2 border-[#FF007F]">
           <CardContent className="text-center py-12">
-            <h2 className="text-2xl font-bold mb-4 text-[#333333]">Group not found</h2>
+            <h2 className="text-2xl font-bold mb-4 text-[#333333]">Loading group...</h2>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
+  if (error || !group) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 flex items-center justify-center">
+        <Card className="border-2 border-[#FF007F]">
+          <CardContent className="text-center py-12">
+            <h2 className="text-2xl font-bold mb-4 text-[#333333]">
+              {error ? 'Error loading group' : 'Group not found'}
+            </h2>
+            {error && <p className="text-red-500 mb-4">{error.message}</p>}
             <Link href="/dashboard">
               <Button className="bg-[#FF007F] hover:bg-[#00CFFF] text-white">Back to Dashboard</Button>
             </Link>
@@ -83,17 +140,39 @@ export default function GroupDetailPage() {
     groupMembers: group.members,
     groupExpenses: group.expenses,
     memberIds: group.members.map(m => m.id),
+    useJsonSystem,
   });
   
+  // Use pre-computed data from JSON if available, otherwise compute on the fly
   const userIds = useMemo(() => group.members.map(m => m.id), [group.members]);
-  const ledger = useMemo(() => buildLedger(group.expenses, userIds, group.settlements), [group.expenses, userIds, group.settlements]);
-  const balances = useMemo(() => computeNetBalances(ledger, userIds), [ledger, userIds]);
-  const settlements = useMemo(() => simplifyDebts(balances), [balances]);
+  
+  const ledger = useMemo(() => {
+    if (useJsonSystem && groupData?.computed?.ledger) {
+      // Convert plain object to Map for compatibility
+      return groupComputationService.ledgerObjectToMap(groupData.computed.ledger, userIds);
+    }
+    return buildLedger(group.expenses, userIds, group.settlements);
+  }, [useJsonSystem, groupData, group.expenses, userIds, group.settlements]);
+  
+  const balances = useMemo(() => {
+    if (useJsonSystem && groupData?.computed?.netBalances) {
+      return groupData.computed.netBalances;
+    }
+    return computeNetBalances(ledger, userIds);
+  }, [useJsonSystem, groupData, ledger, userIds]);
+  
+  const settlements = useMemo(() => {
+    if (useJsonSystem && groupData?.computed?.simplifiedSettlements) {
+      return groupData.computed.simplifiedSettlements;
+    }
+    return simplifyDebts(balances);
+  }, [useJsonSystem, groupData, balances]);
   
   console.log('[Group Stats Debug]', {
     ledger,
     balances,
     settlements,
+    usingPrecomputed: useJsonSystem && !!groupData?.computed,
   });
   
   const myBalance = balances.find(b => b.userId === currentUserId);
@@ -284,7 +363,9 @@ export default function GroupDetailPage() {
                                   currency={userCurrency}
                                   onSettle={async () => {
                                     // Admin settling debt between two users
-                                    await dataStore.recordPayment(groupId, settlement.from, settlement.to, settlement.amountCents);
+                                    await recordSettlement(settlement.from, settlement.to, settlement.amountCents);
+                                    // Explicitly refresh the page data
+                                    await refresh();
                                   }}
                                 />
                               )}
@@ -543,8 +624,10 @@ export default function GroupDetailPage() {
             members={group.members}
             onClose={() => setShowAddExpense(false)}
             onSuccess={() => {
-              // Data will auto-refresh via useGroup hook
+              refresh();
+              setShowAddExpense(false);
             }}
+            useJsonSystem={useJsonSystem}
           />
         )}
 
@@ -555,12 +638,19 @@ export default function GroupDetailPage() {
             toName={settleUpData.toName}
             totalAmountCents={settleUpData.amountCents}
             onConfirm={async (amountCents) => {
-              await dataStore.recordPayment(
-                groupId,
-                settleUpData.from,
-                settleUpData.to,
-                amountCents
-              );
+              try {
+                await recordSettlement(
+                  settleUpData.from,
+                  settleUpData.to,
+                  amountCents
+                );
+                // Explicitly refresh the page data
+                await refresh();
+                setSettleUpData(null);
+              } catch (error) {
+                console.error('Error recording settlement:', error);
+                alert('Failed to record settlement. Please try again.');
+              }
             }}
             onClose={() => setSettleUpData(null)}
           />
@@ -570,16 +660,9 @@ export default function GroupDetailPage() {
         {showAddFriend && (
           <AddFriendModal
             onClose={() => setShowAddFriend(false)}
-            onAdd={async (friendName) => {
-              // Generate email from name
-              const email = `${friendName.toLowerCase().replace(/\s+/g, '.')}@example.com`;
-              
-              // Create or find the user
-              const existingUser = dataStore.getUsers().find(u => u.name === friendName);
-              const userId = existingUser?.id || dataStore.createUser(friendName, email).id;
-              
-              // Add to group
-              await dataStore.addMemberToGroup(groupId, userId);
+            onSuccess={() => {
+              refresh();
+              setShowAddFriend(false);
             }}
           />
         )}

@@ -4,6 +4,13 @@ const client = new Client()
     .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
     .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!);
 
+// Configure client for better Safari compatibility
+if (typeof window !== 'undefined') {
+  // Ensure cookies are set with SameSite=None for OAuth
+  // This helps with Safari's third-party cookie restrictions
+  client.headers['X-Fallback-Cookies'] = 'true';
+}
+
     export const databases = new Databases(client);
     export const storage = new Storage(client);
     export const account = new Account(client);
@@ -39,6 +46,7 @@ const client = new Client()
     export const APP_COLLECTIONS = {
         GROUPS: 'groups',
         EXPENSES: 'expenses',
+        EXPENSES_DATA: 'expenses_data', // JSON-based group data
         MEMBER_NAMES: 'member_names',
         USER_PROFILES: 'userprofiles',
         CONTACT_SUBMISSIONS: 'contact_submissions',

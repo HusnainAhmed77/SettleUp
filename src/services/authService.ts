@@ -104,9 +104,11 @@ export async function checkSession(): Promise<boolean> {
  */
 export async function signInWithGoogle(): Promise<void> {
   try {
-    const successUrl = `${window.location.origin}/dashboard`;
+    // Use same-origin URLs to avoid Safari cookie issues
+    const successUrl = `${window.location.origin}/auth/callback`;
     const failureUrl = `${window.location.origin}/auth?mode=signin&error=oauth_failed`;
     
+    // Open OAuth in same window to maintain session context in Safari
     account.createOAuth2Session(
       'google' as any,
       successUrl,

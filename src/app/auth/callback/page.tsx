@@ -2,99 +2,89 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { account } from '@/lib/appwrite';
+import { handleOAuthCallback } from '@/services/authService';
 import { createOrUpdateUserProfile } from '@/services/userProfileService';
 import { dataStore } from '@/lib/store';
+import { account } from '@/lib/appwrite';
 
-/**
- * OAuth callback handler
- * Creates user profile in database after OAuth authentication
- */
 export default function OAuthCallbackPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const handleOAuthCallback = async () => {
+    const processCallback = async () => {
       try {
-        // Get current user from Appwrite
-        const user = await account.get();
+        console.log('🔄 Processing OAuth callback...');
         
-        if (user) {
-          console.log('[OAuth Callback] User authenticated:', user.email);
-          
-          // Determine provider from sessions
-          let provider = 'email';
-          let googlePictureUrl: string | undefined;
-          
-          try {
-            const sessions = await account.listSessions();
-            if (sessions.sessions.length > 0) {
-              const latestSession = sessions.sessions[0];
-              provider = latestSession.provider || 'email';
-              
-              // If Google OAuth, try to get profile picture
-              if (provider === 'google') {
-                // Google profile picture URL is typically in user prefs or we can construct it
-                const prefs = user.prefs as any;
-                googlePictureUrl = prefs?.picture || undefined;
-              }
-            }
-          } catch (error) {
-            console.log('[OAuth Callback] Could not check sessions:', error);
+        // Wait for OAuth session to be established
+        const user = await handleOAuthCallback();
+        
+        console.log('✅ User authenticated:', user.email);
+        
+        // Determine provider from sessions
+        let provider = 'google';
+        try {
+          const sessions = await account.listSessions();
+          if (sessions.sessions.length > 0) {
+            const latestSession = sessions.sessions[0];
+            provider = latestSession.provider || 'google';
           }
-          
-          // Create or update user profile in database
-          console.log('[OAuth Callback] Creating/updating user profile');
-          await createOrUpdateUserProfile(
-            user.$id,
-            user.email,
-            user.name,
-            provider,
-            googlePictureUrl
-          );
-          
-          // Initialize data store
-          dataStore.setUserId(user.$id);
-          await dataStore.initialize(user.$id);
-          
-          console.log('[OAuth Callback] Profile created, redirecting to dashboard');
-          
-          // Redirect to dashboard
-          router.push('/dashboard');
-        } else {
-          throw new Error('No user found after OAuth');
+        } catch (error) {
+          console.log('Could not check sessions:', error);
         }
+        
+        // Create or update user profile in database
+        await createOrUpdateUserProfile(
+          user.$id,
+          user.email,
+          user.name,
+          provider,
+          undefined
+        );
+        
+        // Initialize data store with user's data
+        dataStore.setUserId(user.$id);
+        await dataStore.initialize(user.$id);
+        
+        console.log('✅ User profile created/updated, redirecting to dashboard...');
+        
+        // Redirect to dashboard
+        router.push('/dashboard');
       } catch (error: any) {
-        console.error('[OAuth Callback] Error:', error);
+        console.error('❌ OAuth callback error:', error);
         setError(error.message || 'Authentication failed');
         
-        // Redirect to auth page with error
+        // Redirect to login with error after 3 seconds
         setTimeout(() => {
           router.push('/auth?mode=signin&error=oauth_failed');
-        }, 2000);
+        }, 3000);
       }
     };
 
-    handleOAuthCallback();
+    processCallback();
   }, [router]);
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error}</p>
-          <p className="text-gray-600">Redirecting to login...</p>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md p-8 bg-white rounded-2xl shadow-lg border-2 border-red-200">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-3xl">❌</span>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Authentication Failed</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <p className="text-sm text-gray-500">Redirecting to login...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto"></div>
-        <p className="mt-4 text-gray-600">Setting up your account...</p>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 flex items-center justify-center">
+      <div className="text-center max-w-md p-8 bg-white rounded-2xl shadow-lg border-2 border-[#FF007F]">
+        <div className="w-16 h-16 border-4 border-[#FF007F] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">Completing Sign In</h2>
+        <p className="text-gray-600">Please wait while we set up your account...</p>
       </div>
     </div>
   );

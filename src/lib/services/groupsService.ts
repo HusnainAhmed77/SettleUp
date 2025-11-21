@@ -103,6 +103,37 @@ export async function createGroup(
       permissions
     );
 
+    // Also create JSON document in expenses_data collection for new JSON-based system
+    try {
+      const { groupDataService } = await import('@/services/groupDataService');
+      const { groupComputationService } = await import('@/services/groupComputationService');
+      
+      // Create initial GroupData structure
+      const groupDataJson = {
+        groupId: response.$id,
+        version: '1.0.0',
+        lastUpdated: new Date().toISOString(),
+        group: {
+          id: response.$id,
+          name: response.name,
+          description: response.description,
+          userId: response.userId,
+          currency: response.currency || 'USD',
+          createdAt: new Date().toISOString(),
+        },
+        members: data.members,
+        expenses: [],
+        settlements: [],
+        computed: groupComputationService.computeGroupState(data.members, [], []),
+      };
+      
+      await groupDataService.createGroupData(groupDataJson);
+      console.log(`✅ Created JSON document for group: ${response.$id}`);
+    } catch (jsonError) {
+      console.error('Failed to create JSON document for group:', jsonError);
+      // Don't fail the whole operation if JSON creation fails
+    }
+
     return {
       $id: response.$id,
       userId: response.userId,

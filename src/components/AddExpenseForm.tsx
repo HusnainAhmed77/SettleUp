@@ -17,9 +17,10 @@ interface AddExpenseFormProps {
   members: User[];
   onClose: () => void;
   onSuccess: () => void;
+  useJsonSystem?: boolean;
 }
 
-export default function AddExpenseForm({ groupId, members, onClose, onSuccess }: AddExpenseFormProps) {
+export default function AddExpenseForm({ groupId, members, onClose, onSuccess, useJsonSystem = false }: AddExpenseFormProps) {
   const userCurrency = useCurrency();
   const currencySymbol = useCurrencySymbol();
   const [step, setStep] = useState(1);
@@ -82,16 +83,36 @@ export default function AddExpenseForm({ groupId, members, onClose, onSuccess }:
         }));
       }
 
-      await dataStore.addExpense(
-        groupId,
-        title,
-        amountCents,
-        payerId,
-        selectedParticipants,
-        splitType,
-        customSplitsData,
-        payersData
-      );
+      // Use appropriate system based on flag
+      if (useJsonSystem) {
+        const { groupMutationService } = await import('@/services/groupMutationService');
+        const { computeShares } = await import('@/lib/split');
+        
+        const splits = computeShares(amountCents, selectedParticipants, splitType, customSplitsData);
+        
+        await groupMutationService.addExpense(groupId, {
+          title,
+          amountCents,
+          currency: userCurrency,
+          payerId,
+          payers: payersData,
+          participants: selectedParticipants,
+          splitType,
+          splits,
+          date: new Date(),
+        });
+      } else {
+        await dataStore.addExpense(
+          groupId,
+          title,
+          amountCents,
+          payerId,
+          selectedParticipants,
+          splitType,
+          customSplitsData,
+          payersData
+        );
+      }
 
       onSuccess();
       onClose();
