@@ -12,7 +12,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Splitwise - Split expenses with friends",
+  title: "SettleUp - Split expenses with friends",
   description: "Keep track of shared expenses and settle up in a simple, fair way.",
 };
 
